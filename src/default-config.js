@@ -103,6 +103,7 @@ const DEFAULT_CONFIG = {
       enabled: true,
       minDurationMinutes: 0,
       onlyInteractive: true,
+      webhookUrls: [],
       channels: {
         webhook: true,
         telegram: false,
@@ -115,6 +116,7 @@ const DEFAULT_CONFIG = {
     codex: {
       enabled: true,
       minDurationMinutes: 0,
+      webhookUrls: [],
       channels: {
         webhook: true,
         telegram: false,
@@ -127,6 +129,7 @@ const DEFAULT_CONFIG = {
     opencode: {
       enabled: true,
       minDurationMinutes: 0,
+      webhookUrls: [],
       channels: {
         webhook: true,
         telegram: false,
@@ -139,6 +142,7 @@ const DEFAULT_CONFIG = {
     gemini: {
       enabled: true,
       minDurationMinutes: 0,
+      webhookUrls: [],
       channels: {
         webhook: true,
         telegram: false,

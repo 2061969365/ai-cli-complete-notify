@@ -266,6 +266,7 @@ async function sendNotifications({ source, taskInfo, durationMs, cwd, projectNam
         projectName,
         timestamp,
         durationText,
+        sourceName,
         sourceLabel,
         taskInfo: effectiveTaskInfo,
         outputContent: resolvedOutput,

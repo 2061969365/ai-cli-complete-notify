@@ -259,6 +259,7 @@ test('sendNotifications allows Claude hooks only outside watch-only mode', async
     });
     assert.equal(hookResult.skipped, false);
     assert.equal(calls.length, 1);
+    assert.equal(calls[0].sourceName, 'claude');
 
     const codexResult = await sendNotifications({
       source: 'codex',
@@ -272,6 +273,7 @@ test('sendNotifications allows Claude hooks only outside watch-only mode', async
     });
     assert.equal(codexResult.skipped, false);
     assert.equal(calls.length, 2);
+    assert.equal(calls[1].sourceName, 'codex');
   } finally {
     if (originalEngine) require.cache[enginePath] = originalEngine;
     else delete require.cache[enginePath];

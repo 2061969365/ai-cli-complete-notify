@@ -2,9 +2,9 @@
 
 <img width="128" src="https://github.com/ZekerTop/ai-cli-complete-notify/blob/main/desktop/assets/tray.png?raw=true">
 
-# AI CLI Complete Notify (v2.11.0)
+# AI CLI Complete Notify (v2.12.0)
 
-![Version](https://img.shields.io/badge/version-2.11.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.12.0-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -318,6 +318,11 @@ macOS 桌面版首次启动会自动检查 `.env`。如果没有找到，会在�
 ```env
 # Webhook 配置（支持飞书/钉钉/企业微信）
 WEBHOOK_URLS=https://open.feishu.cn/open-apis/bot/v2/hook/XXXXX
+# 可选：按来源覆盖。配置后，该来源只发送到自己的 URL，不会同时发送到全局地址
+# CLAUDE_WEBHOOK_URLS=https://example.com/claude-hook
+# CODEX_WEBHOOK_URLS=https://example.com/codex-hook
+# GEMINI_WEBHOOK_URLS=https://example.com/gemini-hook
+# OPENCODE_WEBHOOK_URLS=https://example.com/opencode-hook
 # 飞书卡片格式（true/false），.env 优先于 settings.json
 # WEBHOOK_USE_FEISHU_CARD=false
 # Webhook 默认在 AI 摘要成功时只发送摘要；打开后同时附带原始输出
@@ -448,6 +453,12 @@ macOS 说明：
 <summary>展开 / 收起版本历史</summary>
 
 > `v2.x` 是当前的 Tauri 桌面版本线，`v1.x` 为旧的 Electron 版本线。
+
+### 2.12.0
+
+- 解决 [Issue #30](https://github.com/ZekerTop/ai-cli-complete-notify/issues/30)：新增按来源分流 Webhook，Claude、Codex、Gemini、OpenCode 可分别使用 `CLAUDE_WEBHOOK_URLS`、`CODEX_WEBHOOK_URLS`、`GEMINI_WEBHOOK_URLS`、`OPENCODE_WEBHOOK_URLS`。
+- 来源专属环境变量或 `sources.<source>.webhookUrls` 会覆盖该来源的全局地址，且不会与全局地址重复发送；未配置来源专属地址时继续使用原有 `WEBHOOK_URLS` 和 `channels.webhook.urls`。
+- 保持原有 Webhook 格式、飞书卡片、AI 摘要、原文处理、Hook/Watch 路由、去重和其他通知通道不变，并补充 Claude/Codex 独立发送及全局回退的回归测试。
 
 ### 2.11.0
 

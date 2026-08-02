@@ -93,6 +93,7 @@ export interface AppConfig {
       enabled: boolean;
       minDurationMinutes: number;
       onlyInteractive?: boolean;
+      webhookUrls: string[];
       channels: Record<string, boolean>;
     }
   >;

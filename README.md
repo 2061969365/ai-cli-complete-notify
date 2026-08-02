@@ -2,9 +2,9 @@
 
 <img width="128" src="https://github.com/ZekerTop/ai-cli-complete-notify/blob/main/desktop/assets/tray.png?raw=true">
 
-# AI CLI Complete Notify (v2.11.0)
+# AI CLI Complete Notify (v2.12.0)
 
-![Version](https://img.shields.io/badge/version-2.11.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.12.0-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -315,6 +315,11 @@ On first launch, the packaged macOS app checks for `.env` automatically. If it i
 ```env
 # Webhook configuration (supports Feishu/DingTalk/WeCom)
 WEBHOOK_URLS=https://open.feishu.cn/open-apis/bot/v2/hook/XXXXX
+# Optional per-source overrides. A configured source uses only its own URLs.
+# CLAUDE_WEBHOOK_URLS=https://example.com/claude-hook
+# CODEX_WEBHOOK_URLS=https://example.com/codex-hook
+# GEMINI_WEBHOOK_URLS=https://example.com/gemini-hook
+# OPENCODE_WEBHOOK_URLS=https://example.com/opencode-hook
 # Feishu card format (true/false). .env overrides settings.json.
 # WEBHOOK_USE_FEISHU_CARD=false
 # Webhooks send summary-only when AI summary succeeds by default.
@@ -447,6 +452,12 @@ macOS notes:
 <summary>View version history</summary>
 
 > `v2.x` is the current Tauri-based desktop line. `v1.x` was the Electron-based line.
+
+### 2.12.0
+
+- Added source-specific Webhook routing for [Issue #30](https://github.com/ZekerTop/ai-cli-complete-notify/issues/30). Claude, Codex, Gemini, and OpenCode can use `CLAUDE_WEBHOOK_URLS`, `CODEX_WEBHOOK_URLS`, `GEMINI_WEBHOOK_URLS`, and `OPENCODE_WEBHOOK_URLS` respectively.
+- A source-specific environment variable or `sources.<source>.webhookUrls` now replaces the global URL set for that source. When no source-specific value is configured, the existing `WEBHOOK_URLS` and `channels.webhook.urls` behavior remains unchanged.
+- Preserved existing Webhook formats, Feishu cards, AI summaries, output handling, Hook/Watch routing, deduplication, and all other notification channels, with regression tests covering separate Claude/Codex delivery and global fallback.
 
 ### 2.11.0
 

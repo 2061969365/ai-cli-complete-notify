@@ -97,6 +97,10 @@ test('env setup creates .env.example in the data dir when packaged macOS env is 
     assert.equal(fs.existsSync(expectedExamplePath), true);
     const content = fs.readFileSync(expectedExamplePath, 'utf8');
     assert.match(content, /WEBHOOK_URLS=/);
+    assert.match(content, /CLAUDE_WEBHOOK_URLS=/);
+    assert.match(content, /CODEX_WEBHOOK_URLS=/);
+    assert.match(content, /GEMINI_WEBHOOK_URLS=/);
+    assert.match(content, /OPENCODE_WEBHOOK_URLS=/);
     assert.match(content, /AI_CLI_COMPLETE_NOTIFY_ENV_PATH=\/Users\/yourname\/\.ai-cli-complete-notify\/\.env/);
     assert.equal(content.includes('C:\\Users'), false);
   });

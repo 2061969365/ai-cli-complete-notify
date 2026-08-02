@@ -18,6 +18,12 @@ SOUND_ENABLED=true
 # Webhook URLs for Feishu / DingTalk / WeCom. Separate multiple URLs with commas.
 WEBHOOK_URLS=
 
+# Optional per-source webhook overrides. A source-specific value replaces WEBHOOK_URLS for that source.
+# CLAUDE_WEBHOOK_URLS=
+# CODEX_WEBHOOK_URLS=
+# GEMINI_WEBHOOK_URLS=
+# OPENCODE_WEBHOOK_URLS=
+
 # Telegram
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=

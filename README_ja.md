@@ -2,9 +2,9 @@
 
 <img width="128" src="https://github.com/ZekerTop/ai-cli-complete-notify/blob/main/desktop/assets/tray.png?raw=true">
 
-# AI CLI Complete Notify (v2.11.0)
+# AI CLI Complete Notify (v2.12.0)
 
-![Version](https://img.shields.io/badge/version-2.11.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.12.0-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -200,6 +200,11 @@ node ai-reminder.js env-status --create-example
 
 ```env
 WEBHOOK_URLS=https://open.feishu.cn/open-apis/bot/v2/hook/XXXXX
+# オプション: ソース別の上書き。設定したソースは専用 URL のみに送信します
+# CLAUDE_WEBHOOK_URLS=https://example.com/claude-hook
+# CODEX_WEBHOOK_URLS=https://example.com/codex-hook
+# GEMINI_WEBHOOK_URLS=https://example.com/gemini-hook
+# OPENCODE_WEBHOOK_URLS=https://example.com/opencode-hook
 NOTIFICATION_ENABLED=true
 SOUND_ENABLED=true
 
@@ -263,6 +268,12 @@ macOS の注意:
 <summary>バージョン履歴を表示</summary>
 
 > `v2.x` は現在の Tauri ベースのデスクトップラインで、`v1.x` は旧 Electron ラインです。過去の完全な履歴は [English](README.md) または [简体中文](README_zh.md) を参照してください。
+
+### 2.12.0
+
+- [Issue #30](https://github.com/ZekerTop/ai-cli-complete-notify/issues/30) に対応し、ソース別 Webhook ルーティングを追加しました。Claude、Codex、Gemini、OpenCode はそれぞれ `CLAUDE_WEBHOOK_URLS`、`CODEX_WEBHOOK_URLS`、`GEMINI_WEBHOOK_URLS`、`OPENCODE_WEBHOOK_URLS` を使用できます。
+- ソース別環境変数または `sources.<source>.webhookUrls` は、そのソースのグローバル URL を置き換え、重複送信しません。未設定の場合は従来の `WEBHOOK_URLS` と `channels.webhook.urls` にフォールバックします。
+- 既存の Webhook 形式、Feishu カード、AI 要約、出力処理、Hook/Watch ルーティング、重複排除、その他の通知チャンネルを維持し、Claude/Codex の個別送信とグローバルフォールバックの回帰テストを追加しました。
 
 ### 2.11.0
 

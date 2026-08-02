@@ -188,11 +188,33 @@ function splitUrls(raw) {
     .filter(Boolean);
 }
 
-function readUrls(channel) {
+const SOURCE_WEBHOOK_ENV_NAMES = Object.freeze({
+  claude: 'CLAUDE_WEBHOOK_URLS',
+  codex: 'CODEX_WEBHOOK_URLS',
+  gemini: 'GEMINI_WEBHOOK_URLS',
+  opencode: 'OPENCODE_WEBHOOK_URLS'
+});
+
+function readConfigUrls(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((url) => String(url || '').trim())
+    .filter(Boolean);
+}
+
+function readUrls(channel, sourceName, sourceConfig) {
+  const normalizedSource = String(sourceName || '').trim().toLowerCase();
+  const sourceEnvName = SOURCE_WEBHOOK_ENV_NAMES[normalizedSource];
+  const sourceUrlsFromEnv = sourceEnvName ? splitUrls(process.env[sourceEnvName]) : [];
+  if (sourceUrlsFromEnv.length) return sourceUrlsFromEnv;
+
+  const sourceUrlsFromConfig = readConfigUrls(sourceConfig && sourceConfig.webhookUrls);
+  if (sourceUrlsFromConfig.length) return sourceUrlsFromConfig;
+
   const envName = channel.urlsEnv || 'WEBHOOK_URLS';
   const envVal = process.env[envName];
   const urlsFromEnv = splitUrls(envVal);
-  const urlsFromConfig = Array.isArray(channel.urls) ? channel.urls.filter(Boolean) : [];
+  const urlsFromConfig = readConfigUrls(channel.urls);
   return urlsFromEnv.length ? urlsFromEnv : urlsFromConfig;
 }
 
@@ -579,9 +601,10 @@ function sendWebhook(url, payload, provider) {
   });
 }
 
-async function notifyWebhook({ config, title, contentText, projectName, timestamp, durationText, sourceLabel, taskInfo, outputContent, summaryUsed, summaryDiagnostics }) {
+async function notifyWebhook({ config, title, contentText, projectName, timestamp, durationText, sourceName, sourceLabel, taskInfo, outputContent, summaryUsed, summaryDiagnostics }) {
   const channel = config.channels.webhook || {};
-  const urls = readUrls(channel);
+  const sourceConfig = sourceName && config.sources ? config.sources[sourceName] : null;
+  const urls = readUrls(channel, sourceName, sourceConfig);
   if (!urls.length) return { ok: false, error: '\u672a\u914d\u7f6eWEBHOOK_URLS' };
 
   // 鍒ゆ柇鏄惁浣跨敤椋炰功鍗＄墖鏍煎紡
