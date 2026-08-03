@@ -271,6 +271,8 @@ macOS の注意:
 
 ### 2.12.0
 
+- [Issue #18](https://github.com/ZekerTop/ai-cli-complete-notify/issues/18) を修正しました。トップレベルの Codex セッションは独立して完了通知を送るため、VSCode で中断または正常終了しなかったセッションが、同じワークスペースにある別セッションの通知を抑止しなくなりました。明確な親子メタデータを持つ subagent セッションは引き続き除外されます。
+- Codex の確認通知は、明示的な `request_user_input` イベントでのみ発生します。通常の `task_complete` 応答が「続けますか？」などの質問で終わっていても、完了通知として扱われます。
 - [Issue #30](https://github.com/ZekerTop/ai-cli-complete-notify/issues/30) に対応し、ソース別 Webhook ルーティングを追加しました。Claude、Codex、Gemini、OpenCode はそれぞれ `CLAUDE_WEBHOOK_URLS`、`CODEX_WEBHOOK_URLS`、`GEMINI_WEBHOOK_URLS`、`OPENCODE_WEBHOOK_URLS` を使用できます。
 - ソース別環境変数または `sources.<source>.webhookUrls` は、そのソースのグローバル URL を置き換え、重複送信しません。未設定の場合は従来の `WEBHOOK_URLS` と `channels.webhook.urls` にフォールバックします。
 - 既存の Webhook 形式、Feishu カード、AI 要約、出力処理、Hook/Watch ルーティング、重複排除、その他の通知チャンネルを維持し、Claude/Codex の個別送信とグローバルフォールバックの回帰テストを追加しました。

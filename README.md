@@ -455,6 +455,8 @@ macOS notes:
 
 ### 2.12.0
 
+- Fixed [Issue #18](https://github.com/ZekerTop/ai-cli-complete-notify/issues/18): top-level Codex sessions now notify independently, so a stale or interrupted VSCode session can no longer suppress completions from another session in the same workspace. Explicit subagent sessions remain filtered through Codex parent/child metadata.
+- Codex confirm alerts are now triggered only by explicit `request_user_input` events. Normal `task_complete` responses that end with questions such as "Should I continue?" remain completion alerts.
 - Added source-specific Webhook routing for [Issue #30](https://github.com/ZekerTop/ai-cli-complete-notify/issues/30). Claude, Codex, Gemini, and OpenCode can use `CLAUDE_WEBHOOK_URLS`, `CODEX_WEBHOOK_URLS`, `GEMINI_WEBHOOK_URLS`, and `OPENCODE_WEBHOOK_URLS` respectively.
 - A source-specific environment variable or `sources.<source>.webhookUrls` now replaces the global URL set for that source. When no source-specific value is configured, the existing `WEBHOOK_URLS` and `channels.webhook.urls` behavior remains unchanged.
 - Preserved existing Webhook formats, Feishu cards, AI summaries, output handling, Hook/Watch routing, deduplication, and all other notification channels, with regression tests covering separate Claude/Codex delivery and global fallback.

@@ -456,6 +456,8 @@ macOS 说明：
 
 ### 2.12.0
 
+- 修复 [Issue #18](https://github.com/ZekerTop/ai-cli-complete-notify/issues/18)：Codex 顶层会话现在独立发送完成提醒，VSCode 中异常中断或未正确结束的会话不再阻塞同一工作区的其他会话；明确带有父子元数据的 subagent 仍会被过滤，避免子任务重复提醒。
+- Codex 确认提醒现在只由明确的 `request_user_input` 事件触发；普通 `task_complete` 回复即使以“是否需要我继续？”等问题结尾，也会正常播报为完成提醒。
 - 解决 [Issue #30](https://github.com/ZekerTop/ai-cli-complete-notify/issues/30)：新增按来源分流 Webhook，Claude、Codex、Gemini、OpenCode 可分别使用 `CLAUDE_WEBHOOK_URLS`、`CODEX_WEBHOOK_URLS`、`GEMINI_WEBHOOK_URLS`、`OPENCODE_WEBHOOK_URLS`。
 - 来源专属环境变量或 `sources.<source>.webhookUrls` 会覆盖该来源的全局地址，且不会与全局地址重复发送；未配置来源专属地址时继续使用原有 `WEBHOOK_URLS` 和 `channels.webhook.urls`。
 - 保持原有 Webhook 格式、飞书卡片、AI 摘要、原文处理、Hook/Watch 路由、去重和其他通知通道不变，并补充 Claude/Codex 独立发送及全局回退的回归测试。

@@ -271,6 +271,8 @@ macOS 참고:
 
 ### 2.12.0
 
+- [Issue #18](https://github.com/ZekerTop/ai-cli-complete-notify/issues/18)을 수정했습니다. 이제 최상위 Codex 세션은 독립적으로 완료 알림을 보내므로 VSCode에서 중단되거나 정상적으로 종료되지 않은 세션이 같은 작업 공간의 다른 세션 알림을 차단하지 않습니다. 명확한 부모/자식 메타데이터가 있는 subagent 세션은 계속 필터링됩니다.
+- Codex 확인 알림은 이제 명시적인 `request_user_input` 이벤트에서만 발생합니다. 일반 `task_complete` 응답이 "계속할까요?" 같은 질문으로 끝나더라도 완료 알림으로 처리됩니다.
 - [Issue #30](https://github.com/ZekerTop/ai-cli-complete-notify/issues/30)을 지원하기 위해 소스별 Webhook 라우팅을 추가했습니다. Claude, Codex, Gemini, OpenCode는 각각 `CLAUDE_WEBHOOK_URLS`, `CODEX_WEBHOOK_URLS`, `GEMINI_WEBHOOK_URLS`, `OPENCODE_WEBHOOK_URLS`를 사용할 수 있습니다.
 - 소스별 환경 변수 또는 `sources.<source>.webhookUrls`는 해당 소스의 전역 URL을 대체하며 중복 전송하지 않습니다. 설정하지 않으면 기존 `WEBHOOK_URLS`와 `channels.webhook.urls`로 폴백합니다.
 - 기존 Webhook 형식, Feishu 카드, AI 요약, 출력 처리, Hook/Watch 라우팅, 중복 제거와 다른 알림 채널을 유지하고 Claude/Codex 분리 전송 및 전역 폴백 회귀 테스트를 추가했습니다.
