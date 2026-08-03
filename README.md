@@ -457,6 +457,7 @@ macOS notes:
 
 - Codex Watch now follows native `thread_goal_updated` states for `/goal` tasks. Completion alerts are suppressed while a goal is `active` or `paused`, then sent once after it becomes `complete`, `blocked`, `usage_limited`, or `budget_limited`.
 - Goal state is isolated by Codex session and turn, preserving normal tasks, multi-session notifications, explicit `request_user_input` confirm alerts, and compatibility with older Codex logs that do not emit Goal events.
+- Fixed Claude Watch false completion alerts during `tool_use` / `tool_result` cycles. Tool results no longer reset the turn as human input, while tool calls and empty Assistant records no longer start or retain the completion timer; only the final non-empty Assistant text can trigger the completion alert.
 
 ### 2.12.0
 

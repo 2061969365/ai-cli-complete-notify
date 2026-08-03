@@ -632,6 +632,7 @@ function startClaudeWatch({ intervalMs, quietPeriodMs, log, claudeQuietMs, confi
   const logger = makeLogger(log);
   const root = path.join(os.homedir(), '.claude', 'projects');
   const follower = new JsonlFollower({ seedBytes: 256 * 1024 });
+  let processingChain = Promise.resolve();
 
   const state = {
     currentFile: null,
@@ -665,14 +666,17 @@ function startClaudeWatch({ intervalMs, quietPeriodMs, log, claudeQuietMs, confi
     if (state.lastNotifiedAt === state.lastAssistantAt) return;
     if (state.notifiedForTurn) return;
     if (state.confirmNotifiedForTurn) return;
+    if (state.lastAssistantHadToolUse) return;
     if (ts != null && ts !== state.lastAssistantAt) return;
+
+    const assistantOutput = String(state.lastAssistantContent || state.lastAssistantText || '').trim();
+    if (!assistantOutput) return;
 
     state.lastNotifiedAt = state.lastAssistantAt;
     state.notifiedForTurn = true;
     const durationMs =
       state.lastAssistantAt >= state.lastUserTextAt ? state.lastAssistantAt - state.lastUserTextAt : null;
     const cwd = state.lastCwd || process.cwd();
-    const assistantOutput = state.lastAssistantContent || state.lastAssistantText;
     const failureSummary = looksLikeClaudeFailure(assistantOutput);
     const result = await sendNotifications({
       source: 'claude',
@@ -696,6 +700,8 @@ function startClaudeWatch({ intervalMs, quietPeriodMs, log, claudeQuietMs, confi
     if (state.lastAssistantAt == null || state.lastUserTextAt == null) return;
     if (state.lastAssistantAt < state.lastUserTextAt) return;
     if (state.notifiedForTurn || state.confirmNotifiedForTurn) return;
+    if (state.lastAssistantHadToolUse) return;
+    if (!String(state.lastAssistantContent || state.lastAssistantText || '').trim()) return;
 
     const now = Date.now();
     const windowMs = Math.max(quietMs * 2, 15000);
@@ -708,6 +714,18 @@ function startClaudeWatch({ intervalMs, quietPeriodMs, log, claudeQuietMs, confi
     }, adaptiveQuietMs);
   }
 
+  function clearPendingTimer() {
+    if (state.pendingTimer) clearTimeout(state.pendingTimer);
+    state.pendingTimer = null;
+  }
+
+  function enqueueObject(obj, meta) {
+    processingChain = processingChain
+      .then(() => processObject(obj, meta))
+      .catch(() => {});
+    return processingChain;
+  }
+
   async function processObject(obj, { seed }) {
     if (!obj || typeof obj !== 'object') return;
     if (obj.isSidechain === true) return;
@@ -717,8 +735,7 @@ function startClaudeWatch({ intervalMs, quietPeriodMs, log, claudeQuietMs, confi
       state.sessionOrigin = recordOrigin;
     }
     if (shouldSkipCurrentSession()) {
-      if (state.pendingTimer) clearTimeout(state.pendingTimer);
-      state.pendingTimer = null;
+      clearPendingTimer();
       return;
     }
 
@@ -726,6 +743,13 @@ function startClaudeWatch({ intervalMs, quietPeriodMs, log, claudeQuietMs, confi
     if (typeof obj.cwd === 'string') state.lastCwd = obj.cwd;
 
     if (obj.type === 'user') {
+      if (hasContentType(obj.message, 'tool_result')) {
+        clearPendingTimer();
+        state.lastAssistantHadToolUse = true;
+        return;
+      }
+
+      clearPendingTimer();
       const userText = extractMessageText(obj.message);
       state.lastUserText = userText;
       state.lastAssistantText = '';
@@ -748,7 +772,6 @@ function startClaudeWatch({ intervalMs, quietPeriodMs, log, claudeQuietMs, confi
       const assistantText = extractMessageText(obj.message);
       if (assistantText) state.lastAssistantText = assistantText;
       const hasToolUse = hasContentType(obj.message, 'tool_use');
-      state.lastAssistantHadToolUse = hasToolUse;
 
       let content = '';
 
@@ -768,11 +791,19 @@ function startClaudeWatch({ intervalMs, quietPeriodMs, log, claudeQuietMs, confi
         state.lastAssistantContent = content;
       }
 
+      if (hasToolUse) {
+        state.lastAssistantHadToolUse = true;
+      } else if (String(content || assistantText || '').trim()) {
+        state.lastAssistantHadToolUse = false;
+      }
+
       if (ts != null || !seed) {
         state.lastAssistantAt = ts || Date.now();
       }
 
       if (seed) return;
+
+      clearPendingTimer();
 
       await maybeNotifyConfirm({
         source: 'claude',
@@ -789,11 +820,8 @@ function startClaudeWatch({ intervalMs, quietPeriodMs, log, claudeQuietMs, confi
       }
 
       if (state.confirmNotifiedForTurn) {
-        if (state.pendingTimer) clearTimeout(state.pendingTimer);
-        state.pendingTimer = null;
-      } else {
-        if (state.pendingTimer) clearTimeout(state.pendingTimer);
-
+        clearPendingTimer();
+      } else if (!hasToolUse && String(content || assistantText || '').trim()) {
         state.pendingTimer = setTimeout(() => {
           void maybeNotify(state.lastAssistantAt);
         }, quietMs);
@@ -821,11 +849,11 @@ function startClaudeWatch({ intervalMs, quietPeriodMs, log, claudeQuietMs, confi
         state.lastAssistantContent = null;
         state.lastAssistantHadToolUse = false;
         state.sessionOrigin = getClaudeSessionOrigin({ transcript_path: latest.path });
-        if (state.pendingTimer) clearTimeout(state.pendingTimer);
-        state.pendingTimer = null;
+        clearPendingTimer();
         follower.attach(latest.path, (obj, meta) => {
-          void processObject(obj, meta);
+          void enqueueObject(obj, meta);
         });
+        await processingChain;
         logger(`[watch][claude] following ${latest.path}`);
         if (shouldSkipCurrentSession()) {
           logger(`[watch][claude] SDK-derived session ignored: ${latest.path}`);
@@ -833,8 +861,9 @@ function startClaudeWatch({ intervalMs, quietPeriodMs, log, claudeQuietMs, confi
         scheduleSeedNotifyIfNeeded();
       }
       follower.poll((obj, meta) => {
-        void processObject(obj, meta);
+        void enqueueObject(obj, meta);
       });
+      await processingChain;
     } finally {
       state.tickRunning = false;
     }
@@ -842,7 +871,10 @@ function startClaudeWatch({ intervalMs, quietPeriodMs, log, claudeQuietMs, confi
 
   tick();
   const timer = setInterval(tick, Math.max(500, intervalMs || 1000));
-  return () => clearInterval(timer);
+  return () => {
+    clearInterval(timer);
+    clearPendingTimer();
+  };
 }
 
 function startCodexTuiLogWatch({ intervalMs, log, failureContext }) {

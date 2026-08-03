@@ -273,6 +273,7 @@ macOS の注意:
 
 - Codex Watch は `/goal` タスクのネイティブな `thread_goal_updated` 状態を追跡します。Goal が `active` または `paused` の間は中間の完了通知を抑止し、`complete`、`blocked`、`usage_limited`、`budget_limited` になった後に最終通知を一度だけ送信します。
 - Goal 状態は Codex のセッションとターンごとに分離され、通常タスク、複数セッション通知、明示的な `request_user_input` 確認通知、および Goal イベントを出力しない旧バージョンの Codex の動作を維持します。
+- Claude Watch の `tool_use` / `tool_result` 中に発生する誤った完了通知を修正しました。ツール結果はユーザーの新規入力としてターンをリセットせず、ツール呼び出しや空の Assistant レコードは完了タイマーを開始・保持しません。最終的な空でない Assistant テキストだけが完了通知を発生させます。
 
 ### 2.12.0
 

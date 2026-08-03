@@ -273,6 +273,7 @@ macOS 참고:
 
 - Codex Watch가 `/goal` 작업의 기본 `thread_goal_updated` 상태를 추적합니다. Goal이 `active` 또는 `paused`인 동안에는 중간 완료 알림을 차단하고, `complete`, `blocked`, `usage_limited`, `budget_limited` 상태가 된 뒤 최종 알림을 한 번만 보냅니다.
 - Goal 상태는 Codex 세션과 턴별로 분리되며, 일반 작업, 다중 세션 알림, 명시적인 `request_user_input` 확인 알림 및 Goal 이벤트가 없는 이전 Codex 로그의 기존 동작을 유지합니다.
+- Claude Watch의 `tool_use` / `tool_result` 처리 중 발생하던 잘못된 완료 알림을 수정했습니다. 도구 결과는 실제 사용자 입력처럼 턴을 재설정하지 않으며, 도구 호출과 비어 있는 Assistant 레코드는 완료 타이머를 시작하거나 남겨 두지 않습니다. 최종 비어 있지 않은 Assistant 텍스트만 완료 알림을 발생시킵니다.
 
 ### 2.12.0
 

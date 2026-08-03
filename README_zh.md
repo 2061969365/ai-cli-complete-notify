@@ -458,6 +458,7 @@ macOS 说明：
 
 - Codex Watch 现在会跟踪 `/goal` 任务原生的 `thread_goal_updated` 状态：目标为 `active` 或 `paused` 时不发送中间完成提醒，进入 `complete`、`blocked`、`usage_limited` 或 `budget_limited` 后只发送一次最终提醒。
 - Goal 状态按 Codex 会话和轮次隔离，普通任务、多会话提醒、明确的 `request_user_input` 确认提醒以及不包含 Goal 事件的旧版 Codex 日志继续保持原有行为。
+- 修复 Claude Watch 在 `tool_use` / `tool_result` 流程中的虚假完成提醒：工具结果不再被当作真人新输入重置轮次，工具调用和无文本 Assistant 记录也不会启动或遗留完成计时，只有最终的非空 Assistant 文本才会触发完成提醒。
 
 ### 2.12.0
 

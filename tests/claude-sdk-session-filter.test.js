@@ -282,6 +282,145 @@ test('Claude Watch filters SDK sessions, supports opt-out, and still notifies fo
   assert.equal(notifications[1].outputContent, 'Interactive task completed');
 });
 
+test('Claude Watch waits for final assistant text across tool_use and tool_result records', async (t) => {
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-notify-claude-tools-'));
+  const previousEnv = {
+    HOME: process.env.HOME,
+    USERPROFILE: process.env.USERPROFILE,
+  };
+  const notifications = [];
+  const logs = [];
+  const enginePath = require.resolve('../src/engine');
+  const watchPath = require.resolve('../src/watch');
+  const originalEngineCache = require.cache[enginePath];
+  const originalWatchCache = require.cache[watchPath];
+
+  t.after(() => {
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    if (originalEngineCache) require.cache[enginePath] = originalEngineCache;
+    else delete require.cache[enginePath];
+    if (originalWatchCache) require.cache[watchPath] = originalWatchCache;
+    else delete require.cache[watchPath];
+    fs.rmSync(tempHome, { recursive: true, force: true });
+  });
+
+  process.env.HOME = tempHome;
+  process.env.USERPROFILE = tempHome;
+  require.cache[enginePath] = {
+    id: enginePath,
+    filename: enginePath,
+    loaded: true,
+    exports: {
+      sendNotifications: async (args) => {
+        notifications.push(args);
+        return { results: [{ ok: true }] };
+      },
+    },
+  };
+  delete require.cache[watchPath];
+  const { startWatch } = require('../src/watch');
+
+  const projectDir = path.join(tempHome, '.claude', 'projects', 'project');
+  const transcriptFile = path.join(projectDir, 'interactive-tools.jsonl');
+  const startedAt = Date.now();
+  writeJsonl(transcriptFile, [
+    { type: 'system', entrypoint: 'cli', promptSource: 'typed', timestamp: new Date(startedAt).toISOString() },
+    {
+      type: 'user',
+      message: { content: '请分析并完成这个任务' },
+      timestamp: new Date(startedAt + 10).toISOString(),
+      cwd: tempHome,
+    },
+  ]);
+
+  const stop = startWatch({
+    sources: 'claude',
+    intervalMs: 60,
+    claudeQuietMs: 500,
+    claudeOnlyInteractive: true,
+    log: (line) => logs.push(line),
+    confirmAlert: { enabled: false },
+  });
+  t.after(() => stop());
+
+  await sleep(700);
+  appendJsonl(transcriptFile, [
+    {
+      type: 'assistant',
+      message: { content: [{ type: 'text', text: '我先读取项目文件。' }] },
+      timestamp: new Date(startedAt + 20).toISOString(),
+      cwd: tempHome,
+    },
+    {
+      type: 'assistant',
+      message: { content: [{ type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/tmp/a' } }] },
+      timestamp: new Date(startedAt + 30).toISOString(),
+      cwd: tempHome,
+    },
+    {
+      type: 'user',
+      message: { content: [{ type: 'tool_result', tool_use_id: 'tool-1', content: 'first tool output' }] },
+      timestamp: new Date(startedAt + 40).toISOString(),
+      cwd: tempHome,
+    },
+  ]);
+
+  await sleep(900);
+  assert.equal(notifications.length, 0, `tool cycle should not notify early:\n${logs.join('\n')}`);
+
+  appendJsonl(transcriptFile, [
+    {
+      type: 'assistant',
+      message: { content: [{ type: 'tool_use', id: 'tool-2', name: 'Bash', input: { command: 'test' } }] },
+      timestamp: new Date(startedAt + 50).toISOString(),
+      cwd: tempHome,
+    },
+    {
+      type: 'user',
+      message: { content: [{ type: 'tool_result', tool_use_id: 'tool-2', content: 'second tool output' }] },
+      timestamp: new Date(startedAt + 60).toISOString(),
+      cwd: tempHome,
+    },
+    {
+      type: 'assistant',
+      message: { content: [{ type: 'thinking', thinking: '继续分析工具结果' }] },
+      timestamp: new Date(startedAt + 65).toISOString(),
+      cwd: tempHome,
+    },
+  ]);
+
+  await sleep(900);
+  assert.equal(notifications.length, 0, `repeated tool cycle should stay active:\n${logs.join('\n')}`);
+
+  stop();
+  const resumedStop = startWatch({
+    sources: 'claude',
+    intervalMs: 60,
+    claudeQuietMs: 500,
+    claudeOnlyInteractive: true,
+    log: (line) => logs.push(line),
+    confirmAlert: { enabled: false },
+  });
+  t.after(() => resumedStop());
+
+  await sleep(900);
+  assert.equal(notifications.length, 0, `restart during tool cycle should not replay stale text:\n${logs.join('\n')}`);
+
+  appendJsonl(transcriptFile, [{
+    type: 'assistant',
+    message: { content: [{ type: 'text', text: '任务已经最终完成。' }] },
+    timestamp: new Date(startedAt + 70).toISOString(),
+    cwd: tempHome,
+  }]);
+
+  await waitFor(() => notifications.length === 1);
+  assert.equal(notifications[0].outputContent, '任务已经最终完成。');
+  assert.equal(notifications[0].summaryContext.userMessage, '请分析并完成这个任务');
+});
+
 test('Claude source UI exposes the onlyInteractive switch and localized copy', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src-ui', 'components', 'SourcesPanel.tsx'), 'utf8');
   const zh = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'src-ui', 'i18n', 'zh-CN.json'), 'utf8'));
