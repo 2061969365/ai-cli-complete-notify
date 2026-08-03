@@ -920,10 +920,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
   // When we attach to a just-created session, its first turn may already be fully written.
   // Re-scan the seed window and treat recent lines as "live" so confirm/complete notifications are not missed.
   const seedCatchupMs = Math.max(0, Number(process.env.CODEX_SEED_CATCHUP_MS || 30000));
-  const multiSessionCompleteQuietMs = Math.max(0, Number(process.env.CODEX_MULTI_SESSION_COMPLETE_QUIET_MS || 750));
-  const completionCoordinator = {
-    groups: new Map()
-  };
 
   function isCodexWorkResponseType(type) {
     return [
@@ -1032,156 +1028,17 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
     return lines.some((line) => /^(选项|options?)\s*[:：]/i.test(line));
   }
 
-  function getCoordinationGroupKey(sessionOrCandidate) {
-    if (sessionOrCandidate && sessionOrCandidate.notification && sessionOrCandidate.notification.cwd) {
-      return String(sessionOrCandidate.notification.cwd);
-    }
-    if (sessionOrCandidate && sessionOrCandidate.lastCwd) {
-      return String(sessionOrCandidate.lastCwd);
-    }
-    return process.cwd();
-  }
-
-  function getCoordinatorGroup(groupKey) {
-    const key = String(groupKey || process.cwd());
-    let group = completionCoordinator.groups.get(key);
-    if (!group) {
-      group = {
-        pending: null,
-        timer: null,
-        flushing: false
-      };
-      completionCoordinator.groups.set(key, group);
-    }
-    return group;
-  }
-
-  function deleteCoordinatorGroupIfIdle(groupKey) {
-    const key = String(groupKey || process.cwd());
-    const group = completionCoordinator.groups.get(key);
-    if (!group) return;
-    if (group.pending || group.timer || group.flushing) return;
-    completionCoordinator.groups.delete(key);
-  }
-
-  function clearCoordinatedCompletionTimer(groupKey) {
-    const group = completionCoordinator.groups.get(String(groupKey || process.cwd()));
-    if (!group || !group.timer) return;
-    clearTimeout(group.timer);
-    group.timer = null;
-  }
-
-  function getActiveSessionCount(groupKey) {
-    const key = String(groupKey || process.cwd());
-    let count = 0;
-    for (const session of sessions.values()) {
-      if (
-        session
-        && session.state
-        && session.state.turnActive
-        && getCoordinationGroupKey(session.state) === key
-      ) {
-        count += 1;
-      }
-    }
-    return count;
-  }
-
-  function getTrackedSessionCount(groupKey) {
-    const key = String(groupKey || process.cwd());
-    let count = 0;
-    for (const session of sessions.values()) {
-      if (session && session.state && getCoordinationGroupKey(session.state) === key) count += 1;
-    }
-    return count;
-  }
-
-  function markSessionActive(sessionState) {
-    if (sessionState) sessionState.turnActive = true;
-    const groupKey = getCoordinationGroupKey(sessionState);
-    const group = completionCoordinator.groups.get(groupKey);
-    if (group && group.pending) {
-      group.pending.blockedByActive = true;
-      clearCoordinatedCompletionTimer(groupKey);
-    }
-  }
-
-  async function flushCoordinatedCompletion(reason, groupKey) {
-    const group = completionCoordinator.groups.get(String(groupKey || process.cwd()));
-    if (!group || group.flushing) return false;
-    if (getActiveSessionCount(groupKey) > 0) {
-      if (group.pending) group.pending.blockedByActive = true;
-      return false;
-    }
-    const pending = group.pending;
-    if (!pending) return false;
-
-    clearCoordinatedCompletionTimer(groupKey);
-    group.pending = null;
-    group.flushing = true;
-    try {
-      const result = await sendNotifications(pending.notification);
-      if (pending.state) {
-        pending.state.lastNotifiedAssistantAt = pending.assistantAt;
-        if (pending.turnId) pending.state.lastNotifiedTurnId = pending.turnId;
-        pending.state.confirmNotifiedForTurn = true;
-      }
-      const suffix = pending.logReason || reason || 'task_complete';
-      logger(`[watch][codex] ${summarizeResult(result)} (${suffix})`);
-      return true;
-    } finally {
-      group.flushing = false;
-      deleteCoordinatorGroupIfIdle(groupKey);
-    }
-  }
-
-  async function stageCoordinatedCompletion(candidate) {
+  async function sendCodexSessionCompletion(candidate) {
     if (!candidate || !candidate.notification) return false;
 
-    const groupKey = getCoordinationGroupKey(candidate);
-    const group = getCoordinatorGroup(groupKey);
-    const current = group.pending;
-    const activeCount = getActiveSessionCount(groupKey);
-    if (
-      current
-      && !current.blockedByActive
-      && activeCount === 0
-      && getTrackedSessionCount(groupKey) > 1
-      && multiSessionCompleteQuietMs > 0
-    ) {
-      await flushCoordinatedCompletion(current.logReason || 'multi_session_quiet', groupKey);
+    const result = await sendNotifications(candidate.notification);
+    if (candidate.state) {
+      candidate.state.lastNotifiedAssistantAt = candidate.assistantAt;
+      if (candidate.turnId) candidate.state.lastNotifiedTurnId = candidate.turnId;
+      candidate.state.confirmNotifiedForTurn = true;
     }
-
-    const nextCurrent = group.pending;
-    const currentAt = nextCurrent ? Number(nextCurrent.completionAt || 0) : -Infinity;
-    const candidateAt = Number(candidate.completionAt || 0);
-    const hadActiveBlockedPending = Boolean(nextCurrent && nextCurrent.blockedByActive);
-    candidate.blockedByActive = activeCount > 0;
-    candidate.groupKey = groupKey;
-
-    if (!nextCurrent || candidateAt >= currentAt) {
-      group.pending = candidate;
-    }
-
-    if (activeCount > 0) {
-      clearCoordinatedCompletionTimer(groupKey);
-      return false;
-    }
-
-    if (hadActiveBlockedPending) {
-      return flushCoordinatedCompletion(candidate.logReason || 'task_complete', groupKey);
-    }
-
-    if (getTrackedSessionCount(groupKey) > 1 && multiSessionCompleteQuietMs > 0) {
-      clearCoordinatedCompletionTimer(groupKey);
-      group.timer = setTimeout(() => {
-        group.timer = null;
-        void flushCoordinatedCompletion('multi_session_quiet', groupKey);
-      }, multiSessionCompleteQuietMs);
-      return false;
-    }
-
-    return flushCoordinatedCompletion(candidate.logReason || 'task_complete', groupKey);
+    logger(`[watch][codex] ${summarizeResult(result)} (${candidate.logReason || 'task_complete'})`);
+    return true;
   }
 
   function buildRequestUserInputDedupeKey(payload, ts) {
@@ -1201,101 +1058,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
     return `request_user_input:${turnPart}:${timePart}`;
   }
 
-  // Turn-end prompt detection (text-only, no interactive `request_user_input`).
-  // We run this ONLY at `task_complete` to avoid premature alerts during streaming output.
-  const CODEX_TURN_END_CONFIRM_CUES = [
-    // CN
-    '请确认',
-    '是否继续',
-    '是否开始',
-    '是否开始执行',
-    '是否执行',
-    '是否同意',
-    '是否允许',
-    '是否授权',
-    '请选择',
-    '请选',
-    '你希望',
-    '你想',
-    '你要',
-    '要不要',
-    '可以吗',
-    '可以么',
-    '能否',
-    '可否',
-    // EN
-    'please confirm',
-    'confirm',
-    'approve',
-    'approval',
-    'proceed',
-    'continue',
-    'should i',
-    'shall i',
-    'do you want me',
-    'would you like',
-    'may i'
-  ];
-  const CODEX_TURN_END_CONFIRM_CUES_LOWER = CODEX_TURN_END_CONFIRM_CUES.map((x) => String(x).toLowerCase());
-  const CODEX_TURN_END_ACTION_WORDS = [
-    // CN (verbs that usually imply "waiting for your input")
-    '开始',
-    '继续',
-    '执行',
-    '确认',
-    '选择',
-    '提交',
-    '授权',
-    '允许',
-    '同意',
-    // EN
-    'proceed',
-    'continue',
-    'execute',
-    'run',
-    'confirm',
-    'choose',
-    'select',
-    'approve',
-    'authorize'
-  ];
-  const CODEX_TURN_END_ACTION_WORDS_LOWER = CODEX_TURN_END_ACTION_WORDS.map((x) => String(x).toLowerCase());
-
-  function extractTailLines(text, maxLines, maxChars) {
-    const raw = String(text || '').replace(/\r\n/g, '\n').trim();
-    if (!raw) return '';
-
-    const limited = raw.length > maxChars ? raw.slice(raw.length - maxChars) : raw;
-    const lines = limited
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean);
-
-    const tail = lines.slice(Math.max(0, lines.length - Math.max(1, maxLines)));
-    return tail.join('\n').trim();
-  }
-
-  function detectTurnEndConfirmPrompt(text, { planMode }) {
-    const snippet = extractTailLines(text, 6, 1200);
-    if (!snippet) return '';
-
-    const lower = snippet.toLowerCase();
-    const tailWindow = lower.slice(Math.max(0, lower.length - 500));
-    const lastLine = snippet.split('\n').map((l) => l.trim()).filter(Boolean).slice(-1)[0] || '';
-    const endsWithQuestion = /[?？]\s*$/.test(lastLine);
-
-    const cueNearEnd = CODEX_TURN_END_CONFIRM_CUES_LOWER.some((k) => k && tailWindow.includes(k));
-    if (cueNearEnd) return snippet;
-
-    const actionNearEnd = CODEX_TURN_END_ACTION_WORDS_LOWER.some((k) => k && tailWindow.includes(k));
-    if (endsWithQuestion && actionNearEnd) {
-      // A short, action-oriented question at the end of a turn usually means "waiting for user input".
-      return snippet.length <= 600 ? snippet : extractTailLines(snippet, 3, 600);
-    }
-
-    return '';
-  }
-
   function createSession(filePath) {
     const follower = new JsonlFollower({ seedBytes: 256 * 1024 });
     let processingChain = Promise.resolve();
@@ -1308,7 +1070,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
       lastNotifiedAssistantAt: null,
       lastTaskStartedAt: null,
       currentTurnId: null,
-      collaborationModeKind: '',
       sessionId: null,
       threadSource: '',
       parentThreadId: '',
@@ -1332,7 +1093,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
       lastInteractionResolvedAt: null,
       interactionLoggedForTurn: false,
       interactionNotifiedForTurn: false,
-      turnActive: false,
       pendingCompletion: null
     };
 
@@ -1444,18 +1204,16 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
         return false;
       }
 
-      state.turnActive = false;
       const startAt = state.lastUserAt != null ? state.lastUserAt : state.lastTaskStartedAt;
       const durationMs =
         assistantAt != null && startAt != null && assistantAt >= startAt
           ? assistantAt - startAt
           : null;
       const cwd = state.lastCwd || process.cwd();
-      return stageCoordinatedCompletion({
+      return sendCodexSessionCompletion({
         state,
         turnId: state.currentTurnId,
         assistantAt,
-        completionAt: assistantAt != null ? assistantAt : Date.now(),
         logReason: reason,
         notification: {
           source: 'codex',
@@ -1545,9 +1303,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
           }
           state.currentTurnId = obj.payload.turn_id;
         }
-        if (obj.payload && obj.payload.collaboration_mode && typeof obj.payload.collaboration_mode.mode === 'string') {
-          state.collaborationModeKind = obj.payload.collaboration_mode.mode;
-        }
         return;
       }
 
@@ -1556,7 +1311,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
           await flushPendingCompletion('before_user_message', { allowWithoutToken: true });
         }
         clearPendingCompletion();
-        markSessionActive(state);
         state.lastTaskStartedAt = null;
         state.lastUserAt = ts;
         state.lastUserText = extractTextFromAny(obj.payload);
@@ -1667,7 +1421,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
       }
 
       if (obj.type === 'response_item' && obj.payload && isCodexWorkResponseType(obj.payload.type)) {
-        markSessionActive(state);
         clearPendingCompletion();
         return;
       }
@@ -1695,12 +1448,8 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
           if (!seed) {
             await flushPendingCompletion('before_task_started', { allowWithoutToken: true });
           }
-          markSessionActive(state);
           if (obj.payload && typeof obj.payload.turn_id === 'string') {
             state.currentTurnId = obj.payload.turn_id;
-          }
-          if (obj.payload && typeof obj.payload.collaboration_mode_kind === 'string') {
-            state.collaborationModeKind = obj.payload.collaboration_mode_kind;
           }
           state.lastTaskStartedAt = ts;
           // New turn begins; reset per-turn dedupe/flags.
@@ -1720,7 +1469,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
 
         if (kind === 'task_complete') {
           const turnId = obj.payload && typeof obj.payload.turn_id === 'string' ? obj.payload.turn_id : null;
-          state.turnActive = false;
           if (seed) return;
 
           if (turnId && state.lastNotifiedTurnId === turnId) return;
@@ -1755,7 +1503,7 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
             const requestHasOptions = hasOptionsInRequestPrompt(requestPrompt);
 
             // Prefer explicit option prompts when available (more actionable than tail text).
-            if (confirmEnabled && requestHasOptions) {
+            if (confirmEnabled && requestHasOptions && !state.interactionNotifiedForTurn) {
               const sent = await maybeNotifyConfirm({
                 source: 'codex',
                 text: requestPrompt,
@@ -1773,32 +1521,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
                 sentInThisTaskComplete = true;
                 state.interactionNotifiedForTurn = true;
                 if (turnId) state.lastNotifiedTurnId = turnId;
-              }
-            }
-
-            if (confirmEnabled) {
-              const prompt = detectTurnEndConfirmPrompt(state.lastAgentContent || state.lastAssistantText, {
-                planMode: String(state.collaborationModeKind || '').toLowerCase() === 'plan'
-              });
-              if (prompt && !sentInThisTaskComplete) {
-                const sent = await maybeNotifyConfirm({
-                  source: 'codex',
-                  text: prompt,
-                  cwd: state.lastCwd || process.cwd(),
-                  logger,
-                  state,
-                  confirmDetector,
-                  tag: 'turn_end_question',
-                  force: true,
-                  allowMultiplePerTurn: true,
-                  markTurnConfirmed: false,
-                  dedupeKey: `turn_end_question:${turnId || ''}:${completionAt}`
-                });
-                if (sent) {
-                  sentInThisTaskComplete = true;
-                  state.interactionNotifiedForTurn = true;
-                  if (turnId) state.lastNotifiedTurnId = turnId;
-                }
               }
             }
 
@@ -1834,29 +1556,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
             return;
           }
 
-          if (confirmEnabled && !assistantStaleByInteraction) {
-            const prompt = detectTurnEndConfirmPrompt(state.lastAgentContent || state.lastAssistantText, {
-              planMode: String(state.collaborationModeKind || '').toLowerCase() === 'plan'
-            });
-            if (prompt) {
-              const sent = await maybeNotifyConfirm({
-                source: 'codex',
-                text: prompt,
-                cwd: state.lastCwd || process.cwd(),
-                logger,
-                state,
-                confirmDetector,
-                tag: 'turn_end_question',
-                force: true,
-                dedupeKey: `turn_end_question:${turnId || ''}:${completionAt}`
-              });
-              if (sent) state.interactionNotifiedForTurn = true;
-              if (turnId) state.lastNotifiedTurnId = turnId;
-              logger('[watch][codex] skipped completion (task_complete: question)');
-              return;
-            }
-          }
-
           const startAt = state.lastUserAt != null ? state.lastUserAt : state.lastTaskStartedAt;
           const durationMs =
             startAt != null && completionAt >= startAt
@@ -1867,11 +1566,10 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
             || (assistantStaleByInteraction ? '' : String(state.lastAgentContent || state.lastAssistantText || '').trim());
 
           const cwd = state.lastCwd || process.cwd();
-          await stageCoordinatedCompletion({
+          await sendCodexSessionCompletion({
             state,
             turnId,
             assistantAt: completionAt,
-            completionAt,
             logReason: 'task_complete',
             notification: {
               source: 'codex',
@@ -1893,7 +1591,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
             await flushPendingCompletion('before_user_event', { allowWithoutToken: true });
           }
           clearPendingCompletion();
-          markSessionActive(state);
           state.lastTaskStartedAt = null;
           state.lastUserAt = ts;
           state.lastUserText = extractTextFromAny(obj.payload);
@@ -1920,7 +1617,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
         }
 
         if (kind === 'agent_reasoning') {
-          markSessionActive(state);
           clearPendingCompletion();
           return;
         }
@@ -1947,8 +1643,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
           if (content && content.trim()) {
             state.lastAgentContent = content;
           }
-          markSessionActive(state);
-
           syncFailureContext({
             assistantText: state.lastAgentContent || state.lastAssistantText,
           });
@@ -2100,10 +1794,6 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
   const timer = setInterval(tick, Math.max(500, intervalMs || 1000));
   return () => {
     clearInterval(timer);
-    for (const [groupKey] of completionCoordinator.groups.entries()) {
-      clearCoordinatedCompletionTimer(groupKey);
-    }
-    completionCoordinator.groups.clear();
     for (const session of sessions.values()) {
       try {
         if (session && typeof session.stop === 'function') session.stop();
