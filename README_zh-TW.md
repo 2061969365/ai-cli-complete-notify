@@ -2,9 +2,9 @@
 
 <img width="128" src="https://github.com/ZekerTop/ai-cli-complete-notify/blob/main/desktop/assets/tray.png?raw=true">
 
-# AI CLI Complete Notify (v2.12.0)
+# AI CLI Complete Notify (v2.13.0)
 
-![Version](https://img.shields.io/badge/version-2.12.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.13.0-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -268,6 +268,11 @@ macOS 建議：
 <summary>展開 / 收合版本歷史</summary>
 
 > `v2.x` 是目前的 Tauri 桌面版本線；`v1.x` 是舊 Electron 版本線。完整舊版本歷史可參考 [English](README.md) 或 [简体中文](README_zh.md)。
+
+### 2.13.0
+
+- Codex Watch 現在會追蹤 `/goal` 任務原生的 `thread_goal_updated` 狀態：目標為 `active` 或 `paused` 時不傳送中間完成提醒，進入 `complete`、`blocked`、`usage_limited` 或 `budget_limited` 後只傳送一次最終提醒。
+- Goal 狀態依 Codex 工作階段與輪次隔離，一般任務、多工作階段提醒、明確的 `request_user_input` 確認提醒，以及不包含 Goal 事件的舊版 Codex 日誌皆維持原有行為。
 
 ### 2.12.0
 

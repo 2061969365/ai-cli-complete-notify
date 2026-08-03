@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "ai-cli-complete-notify"
-version = "2.12.0"
+version = "2.13.0"
 dependencies = [
  "serde",
  "serde_json",

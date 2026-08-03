@@ -2,9 +2,9 @@
 
 <img width="128" src="https://github.com/ZekerTop/ai-cli-complete-notify/blob/main/desktop/assets/tray.png?raw=true">
 
-# AI CLI Complete Notify (v2.12.0)
+# AI CLI Complete Notify (v2.13.0)
 
-![Version](https://img.shields.io/badge/version-2.12.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.13.0-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -268,6 +268,11 @@ macOS 참고:
 <summary>버전 이력 보기</summary>
 
 > `v2.x`는 현재 Tauri 기반 데스크톱 라인이고, `v1.x`는 이전 Electron 라인입니다. 전체 이전 버전 이력은 [English](README.md) 또는 [简体中文](README_zh.md)를 참고하세요.
+
+### 2.13.0
+
+- Codex Watch가 `/goal` 작업의 기본 `thread_goal_updated` 상태를 추적합니다. Goal이 `active` 또는 `paused`인 동안에는 중간 완료 알림을 차단하고, `complete`, `blocked`, `usage_limited`, `budget_limited` 상태가 된 뒤 최종 알림을 한 번만 보냅니다.
+- Goal 상태는 Codex 세션과 턴별로 분리되며, 일반 작업, 다중 세션 알림, 명시적인 `request_user_input` 확인 알림 및 Goal 이벤트가 없는 이전 Codex 로그의 기존 동작을 유지합니다.
 
 ### 2.12.0
 

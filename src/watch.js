@@ -465,8 +465,36 @@ function rememberSeenKey(set, key, maxSize) {
   return true;
 }
 
+const CODEX_GOAL_SUPPRESSED_STATUSES = new Set(['active', 'paused']);
+
+function extractCodexGoalUpdate(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  const goal = payload.goal && typeof payload.goal === 'object' ? payload.goal : {};
+  const status = String(goal.status || payload.status || '').trim().toLowerCase();
+  if (!status) return null;
+
+  return {
+    status,
+    turnId: String(payload.turnId || payload.turn_id || goal.turnId || goal.turn_id || '').trim(),
+    threadId: String(payload.threadId || payload.thread_id || goal.threadId || goal.thread_id || '').trim(),
+  };
+}
+
+function shouldSuppressCodexGoalCompletion(state, turnId) {
+  if (!state || !CODEX_GOAL_SUPPRESSED_STATUSES.has(state.goalStatus)) return false;
+  const currentTurnId = String(turnId || '').trim();
+  const goalTurnId = String(state.goalTurnId || '').trim();
+  return !currentTurnId || !goalTurnId || currentTurnId === goalTurnId;
+}
+
 function buildCodexSqliteEventKey(event) {
   if (!event || typeof event !== 'object') return '';
+
+  if (event.type === 'thread_goal_updated') {
+    const update = extractCodexGoalUpdate(event);
+    if (!update) return '';
+    return `goal:${update.threadId}:${update.turnId}:${update.status}`;
+  }
 
   if (event.type === 'response.created' && event.response && typeof event.response.id === 'string') {
     return `created:${event.response.id}`;
@@ -1093,6 +1121,8 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
       lastInteractionResolvedAt: null,
       interactionLoggedForTurn: false,
       interactionNotifiedForTurn: false,
+      goalStatus: '',
+      goalTurnId: '',
       pendingCompletion: null
     };
 
@@ -1163,6 +1193,7 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
     function maybeStageCodexCompletionFallback(phase, ts) {
       if (state.isSubagentSession) return;
       if (state.interactionRequiredForTurn || state.confirmNotifiedForTurn) return;
+      if (shouldSuppressCodexGoalCompletion(state, state.currentTurnId)) return;
 
       const normalizedPhase = typeof phase === 'string' ? phase.trim().toLowerCase() : '';
       if (normalizedPhase === 'final_answer') {
@@ -1188,6 +1219,11 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
       if (pending.tokenRequired && !pending.tokenSeen && !allowWithoutToken) return false;
 
       clearPendingCompletion();
+
+      if (shouldSuppressCodexGoalCompletion(state, state.currentTurnId)) {
+        logger(`[watch][codex] skipped completion (${reason}: goal ${state.goalStatus})`);
+        return false;
+      }
 
       if (state.isSubagentSession) {
         logger('[watch][codex] skipped completion (fallback: subagent)');
@@ -1444,6 +1480,21 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
       if (obj.type === 'event_msg' && obj.payload && typeof obj.payload.type === 'string') {
         const kind = obj.payload.type;
 
+        if (kind === 'thread_goal_updated') {
+          const update = extractCodexGoalUpdate(obj.payload);
+          if (!update) return;
+          const previousStatus = state.goalStatus;
+          state.goalStatus = update.status;
+          state.goalTurnId = update.turnId || state.currentTurnId || '';
+          if (shouldSuppressCodexGoalCompletion(state, state.currentTurnId)) {
+            clearPendingCompletion();
+          }
+          if (!seed && previousStatus !== update.status) {
+            logger(`[watch][codex] goal status=${update.status}`);
+          }
+          return;
+        }
+
         if (kind === 'task_started') {
           if (!seed) {
             await flushPendingCompletion('before_task_started', { allowWithoutToken: true });
@@ -1487,6 +1538,10 @@ function startCodexWatchSessions({ intervalMs, log, confirmDetector, failureCont
             if (turnId) state.lastNotifiedTurnId = turnId;
             const label = state.agentNickname ? ` ${state.agentNickname}` : '';
             logger(`[watch][codex] skipped completion (task_complete: subagent${label})`);
+            return;
+          }
+          if (shouldSuppressCodexGoalCompletion(state, turnId || state.currentTurnId)) {
+            logger(`[watch][codex] skipped completion (task_complete: goal ${state.goalStatus})`);
             return;
           }
           const assistantStaleByInteraction =
@@ -1824,6 +1879,8 @@ function startCodexWatchSqlite({ intervalMs, log, failureContext }) {
       interactionRequired: false,
       notified: false,
     },
+    goalStatus: '',
+    goalTurnId: '',
   };
 
   function syncFailureContext(overrides = {}) {
@@ -1880,6 +1937,14 @@ function startCodexWatchSqlite({ intervalMs, log, failureContext }) {
   async function processEvent(event, { seed }) {
     if (!event || typeof event !== 'object') return;
 
+    if (event.type === 'thread_goal_updated') {
+      const update = extractCodexGoalUpdate(event);
+      if (!update) return;
+      state.goalStatus = update.status;
+      state.goalTurnId = update.turnId;
+      return;
+    }
+
     if (event.type === 'response.created' && event.response && typeof event.response.id === 'string') {
       const createdAt = Number.isFinite(Number(event.response.created_at))
         ? Number(event.response.created_at) * 1000
@@ -1901,7 +1966,13 @@ function startCodexWatchSqlite({ intervalMs, log, failureContext }) {
           current.lastAssistantText = text;
           if (phase === 'final_answer' || !phase) current.lastFinalAnswerText = text;
           syncFailureContext({ assistantText: current.lastFinalAnswerText || current.lastAssistantText });
-          if (phase === 'final_answer' && !seed && !current.interactionRequired && !current.notified) {
+          if (
+            phase === 'final_answer'
+            && !seed
+            && !current.interactionRequired
+            && !current.notified
+            && !shouldSuppressCodexGoalCompletion(state, state.goalTurnId)
+          ) {
             const durationMs =
               current.createdAt != null && Date.now() >= current.createdAt
                 ? Date.now() - current.createdAt
@@ -1966,7 +2037,19 @@ function startCodexWatchSqlite({ intervalMs, log, failureContext }) {
         return;
       }
 
+      if (shouldSuppressCodexGoalCompletion(state, state.goalTurnId)) {
+        logger(`[watch][codex] skipped completion (sqlite: goal ${state.goalStatus})`);
+        if (state.goalStatus === 'paused') {
+          state.goalStatus = '';
+          state.goalTurnId = '';
+        }
+        resetCurrentResponse('', null);
+        return;
+      }
+
       if (current.notified) {
+        state.goalStatus = '';
+        state.goalTurnId = '';
         resetCurrentResponse('', null);
         return;
       }
@@ -1990,6 +2073,8 @@ function startCodexWatchSqlite({ intervalMs, log, failureContext }) {
       });
 
       logger(`[watch][codex] ${summarizeResult(result)} (sqlite response.completed)`);
+      state.goalStatus = '';
+      state.goalTurnId = '';
       resetCurrentResponse('', null);
     }
   }

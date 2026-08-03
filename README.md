@@ -2,9 +2,9 @@
 
 <img width="128" src="https://github.com/ZekerTop/ai-cli-complete-notify/blob/main/desktop/assets/tray.png?raw=true">
 
-# AI CLI Complete Notify (v2.12.0)
+# AI CLI Complete Notify (v2.13.0)
 
-![Version](https://img.shields.io/badge/version-2.12.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.13.0-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -452,6 +452,11 @@ macOS notes:
 <summary>View version history</summary>
 
 > `v2.x` is the current Tauri-based desktop line. `v1.x` was the Electron-based line.
+
+### 2.13.0
+
+- Codex Watch now follows native `thread_goal_updated` states for `/goal` tasks. Completion alerts are suppressed while a goal is `active` or `paused`, then sent once after it becomes `complete`, `blocked`, `usage_limited`, or `budget_limited`.
+- Goal state is isolated by Codex session and turn, preserving normal tasks, multi-session notifications, explicit `request_user_input` confirm alerts, and compatibility with older Codex logs that do not emit Goal events.
 
 ### 2.12.0
 

@@ -219,6 +219,197 @@ test('codex watch reads task_complete content when last_agent_message is missing
   );
 });
 
+test('codex watch only notifies after an active goal stops', async (t) => {
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-reminder-codex-goal-home-'));
+  const previousEnv = {
+    CODEX_WATCH_BACKEND: process.env.CODEX_WATCH_BACKEND,
+    CODEX_FOLLOW_TOP_N: process.env.CODEX_FOLLOW_TOP_N,
+    CODEX_SEED_CATCHUP_MS: process.env.CODEX_SEED_CATCHUP_MS,
+    CODEX_STRICT_FINAL_ANSWER: process.env.CODEX_STRICT_FINAL_ANSWER,
+    CODEX_FINAL_ANSWER_QUIET_MS: process.env.CODEX_FINAL_ANSWER_QUIET_MS,
+    CODEX_TUI_LOG_PATH: process.env.CODEX_TUI_LOG_PATH,
+    HOME: process.env.HOME,
+    USERPROFILE: process.env.USERPROFILE,
+  };
+
+  const notifications = [];
+  const enginePath = require.resolve('../src/engine');
+  const watchPath = require.resolve('../src/watch');
+  const originalEngineCache = require.cache[enginePath];
+  const originalWatchCache = require.cache[watchPath];
+
+  function restore() {
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    if (originalEngineCache) require.cache[enginePath] = originalEngineCache;
+    else delete require.cache[enginePath];
+    if (originalWatchCache) require.cache[watchPath] = originalWatchCache;
+    else delete require.cache[watchPath];
+    fs.rmSync(tempHome, { recursive: true, force: true });
+  }
+
+  t.after(restore);
+
+  process.env.CODEX_WATCH_BACKEND = 'sessions';
+  process.env.CODEX_FOLLOW_TOP_N = '5';
+  process.env.CODEX_SEED_CATCHUP_MS = '0';
+  process.env.CODEX_STRICT_FINAL_ANSWER = '1';
+  process.env.CODEX_FINAL_ANSWER_QUIET_MS = '300';
+  process.env.CODEX_TUI_LOG_PATH = path.join(tempHome, 'missing-codex-tui.log');
+  process.env.HOME = tempHome;
+  process.env.USERPROFILE = tempHome;
+
+  require.cache[enginePath] = {
+    id: enginePath,
+    filename: enginePath,
+    loaded: true,
+    exports: {
+      sendNotifications: async (args) => {
+        notifications.push(args);
+        return { results: [{ ok: true }] };
+      },
+    },
+  };
+  delete require.cache[watchPath];
+  const { startWatch } = require('../src/watch');
+
+  const sessionDir = path.join(tempHome, '.codex', 'sessions', '2026', '08', '03');
+  fs.mkdirSync(sessionDir, { recursive: true });
+  const sessionFile = path.join(sessionDir, 'goal-session.jsonl');
+  fs.writeFileSync(sessionFile, '', 'utf8');
+
+  const logs = [];
+  const stop = startWatch({
+    sources: ['codex'],
+    intervalMs: 50,
+    log: (line) => logs.push(line),
+    confirmAlert: { enabled: false },
+  });
+  t.after(() => stop());
+
+  await sleep(650);
+
+  appendJsonl(sessionFile, [
+    { timestamp: 1, type: 'event_msg', payload: { type: 'task_started', turn_id: 'goal-turn' } },
+    {
+      timestamp: 2,
+      type: 'event_msg',
+      payload: {
+        type: 'thread_goal_updated',
+        threadId: 'goal-session',
+        turnId: 'goal-turn',
+        goal: { status: 'active' },
+      },
+    },
+    {
+      timestamp: 3,
+      type: 'response_item',
+      payload: { type: 'message', role: 'assistant', phase: 'final_answer', content: 'Goal 中间进度' },
+    },
+  ]);
+
+  await sleep(650);
+  assert.equal(notifications.length, 0, `active goal fallback should not notify:\n${logs.join('\n')}`);
+
+  appendJsonl(sessionFile, [
+    {
+      timestamp: 4,
+      type: 'event_msg',
+      payload: { type: 'task_complete', turn_id: 'goal-turn', last_agent_message: 'Goal 中间轮次结束' },
+    },
+  ]);
+  await sleep(650);
+  assert.equal(notifications.length, 0, `active goal task_complete should not notify:\n${logs.join('\n')}`);
+
+  appendJsonl(sessionFile, [
+    {
+      timestamp: 5,
+      type: 'event_msg',
+      payload: {
+        type: 'thread_goal_updated',
+        threadId: 'goal-session',
+        turnId: 'goal-turn',
+        goal: { status: 'complete' },
+      },
+    },
+    {
+      timestamp: 6,
+      type: 'event_msg',
+      payload: { type: 'task_complete', turn_id: 'goal-turn', last_agent_message: 'Goal 最终完成' },
+    },
+  ]);
+
+  await waitFor(() => notifications.length === 1);
+  assert.equal(notifications[0].outputContent, 'Goal 最终完成');
+
+  appendJsonl(sessionFile, [
+    { timestamp: 7, type: 'event_msg', payload: { type: 'task_started', turn_id: 'paused-turn' } },
+    {
+      timestamp: 8,
+      type: 'event_msg',
+      payload: {
+        type: 'thread_goal_updated',
+        threadId: 'goal-session',
+        turnId: 'paused-turn',
+        goal: { status: 'paused' },
+      },
+    },
+    {
+      timestamp: 9,
+      type: 'event_msg',
+      payload: { type: 'task_complete', turn_id: 'paused-turn', last_agent_message: 'Goal 已暂停' },
+    },
+  ]);
+  await sleep(650);
+  assert.equal(notifications.length, 1, `paused goal should not notify:\n${logs.join('\n')}`);
+
+  appendJsonl(sessionFile, [
+    { timestamp: 10, type: 'event_msg', payload: { type: 'task_started', turn_id: 'normal-turn' } },
+    {
+      timestamp: 11,
+      type: 'event_msg',
+      payload: { type: 'task_complete', turn_id: 'normal-turn', last_agent_message: '普通任务完成' },
+    },
+  ]);
+
+  await waitFor(() => notifications.length === 2);
+  assert.equal(notifications[1].outputContent, '普通任务完成');
+
+  appendJsonl(sessionFile, [
+    { timestamp: 12, type: 'event_msg', payload: { type: 'task_started', turn_id: 'blocked-turn' } },
+    {
+      timestamp: 13,
+      type: 'event_msg',
+      payload: {
+        type: 'thread_goal_updated',
+        threadId: 'goal-session',
+        turnId: 'blocked-turn',
+        goal: { status: 'active' },
+      },
+    },
+    {
+      timestamp: 14,
+      type: 'event_msg',
+      payload: {
+        type: 'thread_goal_updated',
+        threadId: 'goal-session',
+        turnId: 'blocked-turn',
+        goal: { status: 'blocked' },
+      },
+    },
+    {
+      timestamp: 15,
+      type: 'event_msg',
+      payload: { type: 'task_complete', turn_id: 'blocked-turn', last_agent_message: 'Goal 已阻塞' },
+    },
+  ]);
+
+  await waitFor(() => notifications.length === 3);
+  assert.equal(notifications[2].outputContent, 'Goal 已阻塞');
+});
+
 test('codex watch suppresses Codex Desktop subagent completions from session metadata', async (t) => {
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-reminder-codex-home-'));
   const previousEnv = {
