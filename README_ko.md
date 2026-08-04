@@ -2,9 +2,9 @@
 
 <img width="128" src="https://github.com/ZekerTop/ai-cli-complete-notify/blob/main/desktop/assets/tray.png?raw=true">
 
-# AI CLI Complete Notify (v2.13.0)
+# AI CLI Complete Notify (v2.14.0)
 
-![Version](https://img.shields.io/badge/version-2.13.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.14.0-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -200,6 +200,7 @@ node ai-reminder.js env-status --create-example
 
 ```env
 WEBHOOK_URLS=https://open.feishu.cn/open-apis/bot/v2/hook/XXXXX
+# DingTalk 사용자 지정 로봇의 보안 키워드를 "AI提醒"으로 설정하세요. 모든 Webhook 메시지에 이 문자열이 포함됩니다
 # 선택 사항: 소스별 재정의. 설정된 소스는 전용 URL로만 전송합니다
 # CLAUDE_WEBHOOK_URLS=https://example.com/claude-hook
 # CODEX_WEBHOOK_URLS=https://example.com/codex-hook
@@ -268,6 +269,12 @@ macOS 참고:
 <summary>버전 이력 보기</summary>
 
 > `v2.x`는 현재 Tauri 기반 데스크톱 라인이고, `v1.x`는 이전 Electron 라인입니다. 전체 이전 버전 이력은 [English](README.md) 또는 [简体中文](README_zh.md)를 참고하세요.
+
+### 2.14.0
+
+- 모든 Webhook 테스트와 실제 알림에 표시되는 `AI提醒` 표식을 추가하고 기본 테스트 내용에도 같은 문자열을 포함했습니다. DingTalk 사용자 지정 로봇은 "AI提醒"을 공통 보안 키워드로 사용할 수 있습니다.
+- Feishu 테스트 카드 본문이 비어 있던 문제를 수정했습니다. AI 요약을 사용하지 않을 때는 `AI提醒 原文`과 작업 또는 출력 내용을 표시하고, 요약 성공 시에는 `AI提醒 AI摘要`를 표시하면서 기존 원문 첨부 설정을 유지합니다.
+- Webhook 실패 시 URL이나 Token을 노출하지 않고 공급자와 반환 사유를 테스트 화면에 표시합니다.
 
 ### 2.13.0
 

@@ -2,9 +2,9 @@
 
 <img width="128" src="https://github.com/ZekerTop/ai-cli-complete-notify/blob/main/desktop/assets/tray.png?raw=true">
 
-# AI CLI Complete Notify (v2.13.0)
+# AI CLI Complete Notify (v2.14.0)
 
-![Version](https://img.shields.io/badge/version-2.13.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.14.0-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -200,6 +200,7 @@ macOS 桌面版首次啟動會自動檢查 `.env`。如果找不到，會在資�
 
 ```env
 WEBHOOK_URLS=https://open.feishu.cn/open-apis/bot/v2/hook/XXXXX
+# 釘釘自訂機器人請將安全關鍵字設為「AI提醒」，所有 Webhook 測試與實際訊息都會包含此標識
 # 可選：依來源覆寫。設定後，該來源只會傳送到自己的 URL
 # CLAUDE_WEBHOOK_URLS=https://example.com/claude-hook
 # CODEX_WEBHOOK_URLS=https://example.com/codex-hook
@@ -268,6 +269,12 @@ macOS 建議：
 <summary>展開 / 收合版本歷史</summary>
 
 > `v2.x` 是目前的 Tauri 桌面版本線；`v1.x` 是舊 Electron 版本線。完整舊版本歷史可參考 [English](README.md) 或 [简体中文](README_zh.md)。
+
+### 2.14.0
+
+- 所有 Webhook 測試與實際訊息統一加入可見標識 `AI提醒`，測試預設內容同步包含此標識，釘釘自訂機器人可統一使用「AI提醒」作為安全關鍵字。
+- 修復飛書測試卡片正文為空：未使用 AI 摘要時顯示 `AI提醒 原文` 與任務或輸出內容，摘要成功時顯示 `AI提醒 AI摘要`，並保留原有附加原文選項。
+- Webhook 失敗時會在測試面板顯示平台與回傳原因，同時不暴露 Webhook URL 或 Token。
 
 ### 2.13.0
 

@@ -2,9 +2,9 @@
 
 <img width="128" src="https://github.com/ZekerTop/ai-cli-complete-notify/blob/main/desktop/assets/tray.png?raw=true">
 
-# AI CLI Complete Notify (v2.13.0)
+# AI CLI Complete Notify (v2.14.0)
 
-![Version](https://img.shields.io/badge/version-2.13.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.14.0-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -315,6 +315,7 @@ On first launch, the packaged macOS app checks for `.env` automatically. If it i
 ```env
 # Webhook configuration (supports Feishu/DingTalk/WeCom)
 WEBHOOK_URLS=https://open.feishu.cn/open-apis/bot/v2/hook/XXXXX
+# DingTalk custom robots: set the security keyword to "AI提醒"; every Webhook message includes it.
 # Optional per-source overrides. A configured source uses only its own URLs.
 # CLAUDE_WEBHOOK_URLS=https://example.com/claude-hook
 # CODEX_WEBHOOK_URLS=https://example.com/codex-hook
@@ -452,6 +453,12 @@ macOS notes:
 <summary>View version history</summary>
 
 > `v2.x` is the current Tauri-based desktop line. `v1.x` was the Electron-based line.
+
+### 2.14.0
+
+- Added the visible `AI提醒` marker to every Webhook payload and to the default test message, so DingTalk custom robots can use one keyword consistently for manual tests and real CLI completion alerts.
+- Fixed empty Feishu test cards: cards without an AI summary now show `AI提醒 原文` with the task or output text, while successful summaries use `AI提醒 AI摘要` and preserve the existing original-output option.
+- Webhook failures now surface the provider and returned reason in the test panel without exposing Webhook URLs or tokens.
 
 ### 2.13.0
 

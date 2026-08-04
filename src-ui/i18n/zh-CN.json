@@ -89,7 +89,7 @@
   "test.source": "来源",
   "test.duration": "耗时(分钟)",
   "test.message": "内容",
-  "test.defaultTask": "测试提醒（强制发送）",
+  "test.defaultTask": "AI提醒 测试提醒（强制发送）",
   "test.fallbackTask": "测试提醒",
   "summary.enabled": "启用 AI 摘要",
   "summary.provider": "模型平台",

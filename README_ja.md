@@ -2,9 +2,9 @@
 
 <img width="128" src="https://github.com/ZekerTop/ai-cli-complete-notify/blob/main/desktop/assets/tray.png?raw=true">
 
-# AI CLI Complete Notify (v2.13.0)
+# AI CLI Complete Notify (v2.14.0)
 
-![Version](https://img.shields.io/badge/version-2.13.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.14.0-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
 
@@ -200,6 +200,7 @@ node ai-reminder.js env-status --create-example
 
 ```env
 WEBHOOK_URLS=https://open.feishu.cn/open-apis/bot/v2/hook/XXXXX
+# DingTalk カスタムロボットのセキュリティキーワードを「AI提醒」に設定してください。すべての Webhook メッセージにこの文字列が含まれます
 # オプション: ソース別の上書き。設定したソースは専用 URL のみに送信します
 # CLAUDE_WEBHOOK_URLS=https://example.com/claude-hook
 # CODEX_WEBHOOK_URLS=https://example.com/codex-hook
@@ -268,6 +269,12 @@ macOS の注意:
 <summary>バージョン履歴を表示</summary>
 
 > `v2.x` は現在の Tauri ベースのデスクトップラインで、`v1.x` は旧 Electron ラインです。過去の完全な履歴は [English](README.md) または [简体中文](README_zh.md) を参照してください。
+
+### 2.14.0
+
+- すべての Webhook テストと実際の通知に可視の `AI提醒` マーカーを追加し、既定のテスト内容にも同じ文字列を含めました。DingTalk カスタムロボットは「AI提醒」を共通のセキュリティキーワードとして使用できます。
+- Feishu テストカードの本文が空になる問題を修正しました。AI 要約を使用しない場合は `AI提醒 原文` とタスクまたは出力を表示し、要約成功時は `AI提醒 AI摘要` を表示して既存の原文追加設定を維持します。
+- Webhook 失敗時に、URL や Token を公開せず、プロバイダーと返却理由をテスト画面に表示するようにしました。
 
 ### 2.13.0
 

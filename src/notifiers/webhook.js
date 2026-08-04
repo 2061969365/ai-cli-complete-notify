@@ -6,6 +6,7 @@ const { exec } = require('child_process');
 
 const REQUEST_TIMEOUT_MS = 10000;
 const DEFAULT_WEBHOOK_OUTPUT_MAX_LENGTH = 3000;
+const WEBHOOK_MESSAGE_MARKER = 'AI提醒';
 
 // Logo key map for light and dark themes.
 const LOGO_MAP = {
@@ -290,6 +291,19 @@ function formatSummaryFailureText(summaryDiagnostics) {
   return `${label}${status}，已显示原文`;
 }
 
+function ensureWebhookMarker(text, existingContent = '') {
+  const content = String(text || '').trim();
+  if (`${existingContent}\n${content}`.includes(WEBHOOK_MESSAGE_MARKER)) return content;
+  return content ? `${WEBHOOK_MESSAGE_MARKER}\n\n${content}` : WEBHOOK_MESSAGE_MARKER;
+}
+
+function stripLeadingWebhookMarker(text) {
+  return String(text || '')
+    .trim()
+    .replace(new RegExp(`^${WEBHOOK_MESSAGE_MARKER}(?:\\s+|$)`), '')
+    .trim();
+}
+
 // Build plain text fallback content.
 function buildPlainText({ title, contentText, summaryText, outputText, summaryFailureText }) {
   const blocks = [title, contentText].filter(Boolean);
@@ -302,7 +316,7 @@ function buildPlainText({ title, contentText, summaryText, outputText, summaryFa
       blocks.push(`输出内容：\n${outputText}`);
     }
   }
-  return blocks.join('\n\n');
+  return ensureWebhookMarker(blocks.join('\n\n'));
 }
 
 function loadCardTemplate(templatePath) {
@@ -318,11 +332,12 @@ function loadCardTemplate(templatePath) {
 }
 
 // Build Feishu card payload.
-async function buildFeishuCard({ projectName, timestamp, durationText, sourceLabel, taskInfo, templatePath, outputContent, summaryFailureText }) {
+async function buildFeishuCard({ projectName, timestamp, durationText, sourceLabel, taskInfo, summaryUsed, templatePath, outputContent, summaryFailureText }) {
   const template = loadCardTemplate(templatePath);
   const hasTaskInfoPlaceholder = JSON.stringify(template).includes('${TASK_INFO}');
   const trimmedOutput = String(outputContent || '').trim();
-  const shouldInjectSummary = Boolean(taskInfo) && !hasTaskInfoPlaceholder;
+  const taskText = stripLeadingWebhookMarker(taskInfo);
+  const shouldInjectTaskInfo = Boolean(taskText) && !hasTaskInfoPlaceholder;
 
   // Detect the current system theme and choose the matching logo.
   const theme = await detectSystemTheme();
@@ -350,7 +365,7 @@ async function buildFeishuCard({ projectName, timestamp, durationText, sourceLab
         .replace(/\$\{SPENT_TIME\}|\{SPENT_TIME\}/g, durationText || '\u672a\u77e5')
         .replace(/\$\{CLI_NAME\}|\{CLI_NAME\}/g, sourceLabel || 'AI')
         .replace(/\$\{logo\}|\{logo\}/g, logoKey)
-        .replace(/\$\{TASK_INFO\}|\{TASK_INFO\}/g, taskInfo || '')
+        .replace(/\$\{TASK_INFO\}|\{TASK_INFO\}/g, taskText)
         .replace(/\$\{OUTPUT_CONTENT\}|\{OUTPUT_CONTENT\}/g, outputContent || '');
     }
     if (Array.isArray(obj)) {
@@ -368,10 +383,10 @@ async function buildFeishuCard({ projectName, timestamp, durationText, sourceLab
 
   const cardWithVars = replaceVariables(card);
 
-  if (taskInfo && cardWithVars.body && Array.isArray(cardWithVars.body.elements) && shouldInjectSummary && !trimmedOutput) {
+  if (taskText && cardWithVars.body && Array.isArray(cardWithVars.body.elements) && shouldInjectTaskInfo && !trimmedOutput) {
     cardWithVars.body.elements.push({
       tag: 'markdown',
-      content: `**AI \u6458\u8981**\uff1a${taskInfo}`,
+      content: `**${summaryUsed ? 'AI提醒 AI摘要' : 'AI提醒 原文'}**\n\n${taskText}`,
       text_align: 'left',
       text_size: 'normal_v2',
       margin: '8px 0 0 0'
@@ -396,7 +411,7 @@ async function buildFeishuCard({ projectName, timestamp, durationText, sourceLab
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
-    const summaryContent = String(taskInfo || '')
+    const taskContent = taskText
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
     const summaryFailureContent = String(summaryFailureText || '')
@@ -404,19 +419,19 @@ async function buildFeishuCard({ projectName, timestamp, durationText, sourceLab
       .replace(/>/g, '&gt;');
 
     if (cardWithVars.body && Array.isArray(cardWithVars.body.elements)) {
-      if (summaryContent && shouldInjectSummary) {
+      if (summaryUsed && taskContent && shouldInjectTaskInfo) {
         cardWithVars.body.elements.push({
           tag: 'markdown',
-          content: `**AI 摘要**\n\n${summaryContent}`,
+          content: `**AI提醒 AI摘要**\n\n${taskContent}`,
           text_align: 'left',
           text_size: 'normal_v2',
           margin: '8px 0 0 0'
         });
       }
-      if (!summaryContent && summaryFailureContent) {
+      if (!summaryUsed && summaryFailureContent) {
         cardWithVars.body.elements.push({
           tag: 'markdown',
-          content: `**AI 摘要**：${summaryFailureContent}`,
+          content: `**AI提醒 AI摘要**：${summaryFailureContent}`,
           text_align: 'left',
           text_size: 'normal_v2',
           margin: '8px 0 0 0'
@@ -428,7 +443,7 @@ async function buildFeishuCard({ projectName, timestamp, durationText, sourceLab
       });
       cardWithVars.body.elements.push({
         tag: 'markdown',
-        content: `${summaryContent || summaryFailureContent ? '**原文**' : '**输出内容**'}\n\n${content}`,
+        content: `${summaryUsed || summaryFailureContent ? '**原文**' : '**AI提醒 原文**'}\n\n${content}`,
         text_align: 'left',
         text_size: 'normal_v2',
         margin: '8px 0 0 0'
@@ -436,6 +451,18 @@ async function buildFeishuCard({ projectName, timestamp, durationText, sourceLab
     }
   } else {
     console.log('[webhook] 未检测到输出内容');
+  }
+
+  if (!JSON.stringify(cardWithVars).includes(WEBHOOK_MESSAGE_MARKER)
+    && cardWithVars.body
+    && Array.isArray(cardWithVars.body.elements)) {
+    cardWithVars.body.elements.push({
+      tag: 'markdown',
+      content: `**${WEBHOOK_MESSAGE_MARKER}**`,
+      text_align: 'left',
+      text_size: 'normal_v2',
+      margin: '8px 0 0 0'
+    });
   }
 
   return cardWithVars;
@@ -452,7 +479,7 @@ function buildFeishuPostPayload({ title, contentText, summaryText, outputText, s
       blocks.push(`输出内容：\n${outputText}`);
     }
   }
-  const textBlock = blocks.filter(Boolean).join('\n\n');
+  const textBlock = ensureWebhookMarker(blocks.filter(Boolean).join('\n\n'), title);
   return {
     msg_type: 'post',
     content: {
@@ -493,6 +520,12 @@ function safeParseJson(text) {
   }
 }
 
+function sanitizeWebhookError(error) {
+  return String(error || 'unknown error')
+    .replace(/https?:\/\/\S+/gi, '<redacted URL>')
+    .replace(/\b(access_token|token|secret)=\S+/gi, '$1=<redacted>');
+}
+
 function evaluateWebhookResponse(provider, status, bodyText) {
   const statusOk = status >= 200 && status < 300;
   if (!statusOk) return { ok: false, error: `HTTP ${status}` };
@@ -527,6 +560,8 @@ async function buildPayloadByProvider({
   title,
   contentText,
   summaryText,
+  taskInfo,
+  summaryUsed,
   summaryFailureText,
   outputText,
   channel
@@ -538,7 +573,8 @@ async function buildPayloadByProvider({
         timestamp,
         durationText,
         sourceLabel,
-        taskInfo: summaryText,
+        taskInfo,
+        summaryUsed,
         summaryFailureText,
         templatePath: channel.cardTemplatePath,
         outputContent: outputText
@@ -612,7 +648,8 @@ async function notifyWebhook({ config, title, contentText, projectName, timestam
   const includeOutputWhenSummary = readIncludeOutputWhenSummary(channel);
   const outputMaxLength = readOutputMaxLength(channel);
   const summarySucceeded = Boolean(summaryUsed);
-  const summaryText = summarySucceeded ? String(taskInfo || '').trim() : '';
+  const rawTaskText = String(taskInfo || '').trim();
+  const summaryText = summarySucceeded ? rawTaskText : '';
   const summaryFailureText = formatSummaryFailureText(summaryDiagnostics);
   const rawOutputText = String(outputContent || '').trim();
 
@@ -635,6 +672,8 @@ async function notifyWebhook({ config, title, contentText, projectName, timestam
       title,
       contentText,
       summaryText,
+      taskInfo: rawTaskText,
+      summaryUsed: summarySucceeded,
       summaryFailureText,
       outputText,
       channel
@@ -645,7 +684,14 @@ async function notifyWebhook({ config, title, contentText, projectName, timestam
   }
 
   const ok = results.every((r) => r.ok);
-  return { ok, results };
+  const error = results
+    .filter((result) => !result.ok)
+    .map((result) => {
+      const reason = result.error || (result.status ? `HTTP ${result.status}` : 'unknown error');
+      return `${result.provider || 'webhook'}: ${sanitizeWebhookError(reason)}`;
+    })
+    .join('; ');
+  return { ok, results, ...(error ? { error } : {}) };
 }
 
 module.exports = {

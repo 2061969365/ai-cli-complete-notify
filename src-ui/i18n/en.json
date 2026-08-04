@@ -89,7 +89,7 @@
   "test.source": "Source",
   "test.duration": "Duration (min)",
   "test.message": "Message",
-  "test.defaultTask": "Test notification (forced)",
+  "test.defaultTask": "AI提醒 Test notification (forced)",
   "test.fallbackTask": "Test notification",
   "summary.enabled": "Enable AI summary",
   "summary.provider": "Model platform",
