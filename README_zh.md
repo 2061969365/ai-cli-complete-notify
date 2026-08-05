@@ -7,6 +7,7 @@
 ![Version](https://img.shields.io/badge/version-2.14.0-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
+[![下载 macOS DMG](https://img.shields.io/github/v/release/ZekerTop/ai-cli-complete-notify?label=macOS%20DMG&logo=apple)](https://github.com/ZekerTop/ai-cli-complete-notify/releases/latest)
 
 [English](README.md) | 简体中文 | [繁體中文](README_zh-TW.md) | [한국어](README_ko.md) | [日本語](README_ja.md)
 
@@ -71,7 +72,18 @@
 
 ### macOS / Linux 用户
 
-源码 / 开发模式需要 Node.js/npm 和 Rust/Cargo。Tauri 在执行 `npm run dev` 时会调用 `cargo`；如果 `cargo --version` 失败，请先从 [Rust 官方安装页面](https://www.rust-lang.org/tools/install) 安装 Rust。
+#### macOS：直接安装 DMG（推荐）
+
+1. Apple Silicon Mac 用户从 [GitHub Releases](https://github.com/ZekerTop/ai-cli-complete-notify/releases/latest) 下载最新的 `ai-cli-complete-notify_<版本号>_aarch64.dmg`。
+2. 打开 DMG，将 `ai-cli-complete-notify.app` 拖入“应用程序（Applications）”。
+3. 首次启动时，如果 macOS 提示无法验证开发者，请右键应用并选择“打开”。
+4. 打包版从 `~/.ai-cli-complete-notify/.env` 读取通知配置；首次启动发现配置缺失时，会在该目录创建 `.env.example`。
+
+> 当前 Release DMG 适用于 Apple Silicon（`arm64`）。Intel Mac 用户可以按照下面的步骤从源码构建。
+
+#### 从源码运行（macOS / Linux）
+
+以下步骤仅适用于 Linux、Intel Mac、开发调试或希望自行构建的用户。源码 / 开发模式需要 Node.js/npm 和 Rust/Cargo。Tauri 在执行 `npm run dev` 时会调用 `cargo`；如果 `cargo --version` 失败，请先从 [Rust 官方安装页面](https://www.rust-lang.org/tools/install) 安装 Rust。
 
 ```bash
 # 克隆仓库
@@ -92,7 +104,7 @@ cp .env.example .env
 npm run dev
 ```
 
-macOS 打包为可双击打开的应用：
+可选：从源码打包可双击打开的 macOS 应用：
 
 ```bash
 # 生成 .app

@@ -7,6 +7,7 @@
 ![Version](https://img.shields.io/badge/version-2.14.0-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
+[![Download macOS DMG](https://img.shields.io/github/v/release/ZekerTop/ai-cli-complete-notify?label=macOS%20DMG&logo=apple)](https://github.com/ZekerTop/ai-cli-complete-notify/releases/latest)
 
 English | [简体中文](README_zh.md) | [繁體中文](README_zh-TW.md) | [한국어](README_ko.md) | [日本語](README_ja.md)
 
@@ -70,7 +71,18 @@ Benefits:
 
 ### macOS / Linux Users
 
-Source/dev mode requires Node.js/npm and Rust/Cargo. Tauri calls `cargo` when running `npm run dev`; if `cargo --version` fails, install Rust from the [official Rust installation page](https://www.rust-lang.org/tools/install) first.
+#### macOS: Install the DMG (Recommended)
+
+1. On an Apple Silicon Mac, download the latest `ai-cli-complete-notify_<version>_aarch64.dmg` from [GitHub Releases](https://github.com/ZekerTop/ai-cli-complete-notify/releases/latest).
+2. Open the DMG and drag `ai-cli-complete-notify.app` into `Applications`.
+3. On first launch, if macOS says the developer cannot be verified, right-click the app and choose **Open**.
+4. The packaged app reads notification settings from `~/.ai-cli-complete-notify/.env`. On first launch it creates `.env.example` there when configuration is missing.
+
+> The current Release DMG targets Apple Silicon (`arm64`). Intel Mac users can build from source using the steps below.
+
+#### Run from Source (macOS / Linux)
+
+The following steps are only needed for Linux, Intel Mac, development, or users who prefer to build from source. Source/dev mode requires Node.js/npm and Rust/Cargo. Tauri calls `cargo` when running `npm run dev`; if `cargo --version` fails, install Rust from the [official Rust installation page](https://www.rust-lang.org/tools/install) first.
 
 ```bash
 # Clone repository
@@ -91,7 +103,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Build a double-clickable macOS app:
+Optional: build a double-clickable macOS app from source:
 
 ```bash
 # Build .app

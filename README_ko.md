@@ -7,6 +7,7 @@
 ![Version](https://img.shields.io/badge/version-2.14.0-blue.svg)
 ![License](https://img.shields.io/badge/license-ISC-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20WSL-lightgrey.svg)
+[![macOS DMG 다운로드](https://img.shields.io/github/v/release/ZekerTop/ai-cli-complete-notify?label=macOS%20DMG&logo=apple)](https://github.com/ZekerTop/ai-cli-complete-notify/releases/latest)
 
 [English](README.md) | [简体中文](README_zh.md) | [繁體中文](README_zh-TW.md) | 한국어 | [日本語](README_ja.md)
 
@@ -64,7 +65,18 @@ AI CLI Complete Notify는 Claude Code / Codex / OpenCode / Gemini 작업 완료 
 
 ### macOS / Linux 사용자
 
-소스/개발 모드에는 Node.js/npm과 Rust/Cargo가 필요합니다. Tauri는 `npm run dev` 실행 중 `cargo`를 호출합니다. `cargo --version`이 실패하면 먼저 [Rust 공식 설치 페이지](https://www.rust-lang.org/tools/install)에서 Rust를 설치하세요.
+#### macOS: DMG 직접 설치(권장)
+
+1. Apple Silicon Mac에서는 [GitHub Releases](https://github.com/ZekerTop/ai-cli-complete-notify/releases/latest)에서 최신 `ai-cli-complete-notify_<version>_aarch64.dmg`를 다운로드합니다.
+2. DMG를 열고 `ai-cli-complete-notify.app`을 `Applications`로 드래그합니다.
+3. 처음 실행할 때 macOS에서 개발자를 확인할 수 없다고 표시하면 앱을 마우스 오른쪽 버튼으로 클릭하고 **열기**를 선택합니다.
+4. 패키징된 앱은 `~/.ai-cli-complete-notify/.env`에서 알림 설정을 읽습니다. 첫 실행 시 설정이 없으면 같은 디렉터리에 `.env.example`을 생성합니다.
+
+> 현재 Release DMG는 Apple Silicon(`arm64`)용입니다. Intel Mac 사용자는 아래 단계에 따라 소스에서 빌드할 수 있습니다.
+
+#### 소스에서 실행(macOS / Linux)
+
+아래 단계는 Linux, Intel Mac, 개발 또는 소스에서 직접 빌드하려는 경우에만 필요합니다. 소스/개발 모드에는 Node.js/npm과 Rust/Cargo가 필요합니다. Tauri는 `npm run dev` 실행 중 `cargo`를 호출합니다. `cargo --version`이 실패하면 먼저 [Rust 공식 설치 페이지](https://www.rust-lang.org/tools/install)에서 Rust를 설치하세요.
 
 ```bash
 # 저장소 복제
@@ -85,7 +97,7 @@ cp .env.example .env
 npm run dev
 ```
 
-macOS에서 더블 클릭 가능한 앱을 빌드하려면:
+선택 사항: 소스에서 더블 클릭 가능한 macOS 앱을 빌드하려면:
 
 ```bash
 # .app 빌드
