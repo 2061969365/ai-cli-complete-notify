@@ -374,6 +374,10 @@ Issue와 Pull Request를 환영합니다.
  <img alt="Star History Chart" src="assets/star-history/star-history.png" />
 </a>
 
+## 라이선스
+
+이 프로젝트는 [ISC License](LICENSE)에 따라 배포됩니다.
+
 ---
 
 **스마트 알림으로 AI가 일하게 두세요.** 🎉

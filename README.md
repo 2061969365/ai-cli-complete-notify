@@ -664,6 +664,10 @@ Thanks to everyone who has contributed to this project through code, documentati
  <img alt="Star History Chart" src="assets/star-history/star-history.png" />
 </a>
 
+## License
+
+This project is licensed under the [ISC License](LICENSE).
+
 ---
 
 **Enjoy smart notifications and let AI work for you!** 🎉

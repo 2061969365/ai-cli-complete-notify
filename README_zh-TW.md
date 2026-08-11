@@ -374,6 +374,10 @@ macOS 建議：
  <img alt="Star History Chart" src="assets/star-history/star-history.png" />
 </a>
 
+## 授權條款
+
+本專案採用 [ISC License](LICENSE) 開源授權條款。
+
 ---
 
 **享受智慧提醒，讓 AI 替你工作。** 🎉

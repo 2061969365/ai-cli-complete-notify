@@ -666,6 +666,10 @@ macOS 说明：
  <img alt="Star History Chart" src="assets/star-history/star-history.png" />
 </a>
 
+## 许可证
+
+本项目采用 [ISC License](LICENSE) 开源许可证。
+
 ---
 
 **享受智能提醒，让 AI 为您工作！** 🎉
