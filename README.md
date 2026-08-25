@@ -15,7 +15,7 @@ English | [简体中文](README_zh.md) | [繁體中文](README_zh-TW.md) | [한�
 </div>
 
 ## Sponsors
-> [Want to sponsor this project?](mailto:top.zeker@gmail.com)
+> [👉 Want to sponsor this project?](mailto:top.zeker@gmail.com)
 
 ### 📖 Introduction
 

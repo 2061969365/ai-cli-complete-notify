@@ -16,7 +16,7 @@
 </div>
 
 ## Sponsors
-> [想赞助本项目？](mailto:top.zeker@gmail.com)
+> [👉 想赞助本项目？](mailto:top.zeker@gmail.com)
 
 ### 📖 简介
 

@@ -16,7 +16,7 @@
 </div>
 
 ## Sponsors
-> [このプロジェクトをスポンサー支援しませんか？](mailto:top.zeker@gmail.com)
+> [👉 このプロジェクトをスポンサー支援しませんか？](mailto:top.zeker@gmail.com)
 
 ### 📖 概要
 

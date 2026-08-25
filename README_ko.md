@@ -16,7 +16,7 @@
 </div>
 
 ## Sponsors
-> [이 프로젝트를 후원하고 싶으신가요?](mailto:top.zeker@gmail.com)
+> [👉 이 프로젝트를 후원하고 싶으신가요?](mailto:top.zeker@gmail.com)
 
 ### 📖 소개
 
