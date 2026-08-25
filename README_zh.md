@@ -15,6 +15,9 @@
 
 </div>
 
+## Sponsors
+> [想赞助本项目？](mailto:top.zeker@gmail.com)
+
 ### 📖 简介
 
 面向 Claude Code / Codex / OpenCode / Gemini 的智能任务完成提醒工具，支持多种通知渠道和灵活的配置选项。当 AI 助手完成长时间任务时，自动通过多种方式通知您，让您无需守在电脑前等待。

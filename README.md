@@ -14,6 +14,9 @@ English | [简体中文](README_zh.md) | [繁體中文](README_zh-TW.md) | [한�
 ![UI Preview](docs/images/通道.png)
 </div>
 
+## Sponsors
+> [Want to sponsor this project?](mailto:top.zeker@gmail.com)
+
 ### 📖 Introduction
 
 An intelligent task completion notification tool for Claude Code / Codex / OpenCode / Gemini, supporting multiple notification channels and flexible configuration options. Get notified automatically through various methods when AI assistants complete long-running tasks, so you don't have to wait in front of your computer.

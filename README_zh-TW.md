@@ -15,6 +15,9 @@
 
 </div>
 
+## Sponsors
+> [想贊助本專案？](mailto:top.zeker@gmail.com)
+
 ### 📖 簡介
 
 AI CLI Complete Notify 是面向 Claude Code / Codex / OpenCode / Gemini 的任務完成提醒工具。它可以在 AI 助手完成長時間任務後，透過桌面通知、聲音、Webhook、Telegram、Email 等方式提醒你，不必一直守在電腦前等待。

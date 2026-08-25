@@ -15,6 +15,9 @@
 
 </div>
 
+## Sponsors
+> [이 프로젝트를 후원하고 싶으신가요?](mailto:top.zeker@gmail.com)
+
 ### 📖 소개
 
 AI CLI Complete Notify는 Claude Code / Codex / OpenCode / Gemini 작업 완료 알림 도구입니다. AI 도구가 긴 작업을 마쳤을 때 데스크톱 알림, 소리, Webhook, Telegram, Email 등 여러 채널로 알려 주기 때문에 컴퓨터 앞에서 계속 기다릴 필요가 없습니다.
