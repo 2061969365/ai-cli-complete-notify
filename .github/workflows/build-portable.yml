@@ -27,9 +27,10 @@ jobs:
         with:
           name: ai-cli-complete-notify-portable-win-x64
           path: |
-            dist-portable/*.zip
-            dist-portable/*.exe
+            dist/*.zip
+            dist/ai-cli-complete-notify-*-portable-win-x64/**
             src-tauri/binaries/*.exe
+            src-tauri/target/release/*.exe
           if-no-files-found: warn
 
   build-ubuntu:
