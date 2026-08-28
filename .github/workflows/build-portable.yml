@@ -1,0 +1,48 @@
+name: Build Portable
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install deps
+        run: npm ci
+      - name: Build sidecar + UI + portable
+        run: npm run dist:portable
+      - name: Upload portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-cli-complete-notify-portable-win-x64
+          path: |
+            dist-portable/*.zip
+            dist-portable/*.exe
+            src-tauri/binaries/*.exe
+          if-no-files-found: warn
+
+  build-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Install deps
+        run: npm ci
+      - name: Build sidecar + UI
+        run: |
+          npm run build:sidecar
+          npm run build:ui
