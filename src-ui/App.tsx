@@ -20,6 +20,7 @@ import TestPanel from '@/components/TestPanel';
 import SummaryPanel from '@/components/SummaryPanel';
 import AdvancedPanel from '@/components/AdvancedPanel';
 import AboutProjectPanel from '@/components/AboutProjectPanel';
+import ClashPanel from '@/components/ClashPanel';
 import CloseDialog from '@/components/CloseDialog';
 
 declare const __APP_VERSION__: string;
@@ -371,6 +372,9 @@ export default function App() {
               <WatchPanel config={config} onUpdate={update} watch={watch} />
               <TestPanel />
             </>
+          )}
+          {activePanel === 'clash' && (
+            <ClashPanel config={config} onUpdate={update} />
           )}
           {activePanel === 'summary' && (
             <SummaryPanel config={config} onUpdate={update} />

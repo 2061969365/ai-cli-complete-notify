@@ -328,9 +328,267 @@ function buildOpenCodePlugin(exePath) {
   return `// ${OPENCODE_PLUGIN_MARKER}
 const NOTIFY_CMD = ${JSON.stringify(notifyArgv, null, 2)};
 const DEDUPE_MS = 1500;
-
 let lastEventKey = '';
 let lastEventAt = 0;
+let lastClashKey = '';
+let lastClashAt = 0;
+
+function firstEnv(...keys) {
+  for (const k of keys) {
+    const v = process.env[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
+}
+function loadClashFileConfig() {
+  try {
+    let fsMod = null, pathMod = null, osMod = null;
+    try { fsMod = typeof require !== 'undefined' ? require('fs') : null; } catch(e) {}
+    if (!fsMod) try { fsMod = globalThis.require ? globalThis.require('fs') : null; } catch(e) {}
+    try { pathMod = typeof require !== 'undefined' ? require('path') : null; } catch(e) {}
+    if (!pathMod) try { pathMod = globalThis.require ? globalThis.require('path') : null; } catch(e) {}
+    try { osMod = typeof require !== 'undefined' ? require('os') : null; } catch(e) {}
+    if (!osMod) try { osMod = globalThis.require ? globalThis.require('os') : null; } catch(e) {}
+    if (!fsMod || !pathMod || !osMod) return null;
+    const dataDir = process.env.AI_CLI_COMPLETE_NOTIFY_DATA_DIR || (process.platform === 'win32' ? pathMod.join(osMod.homedir(), 'AppData', 'Roaming', 'ai-cli-complete-notify') : pathMod.join(osMod.homedir(), '.config', 'ai-cli-complete-notify'));
+    const p = pathMod.join(dataDir, 'settings.json');
+    if (!fsMod.existsSync(p)) return null;
+    const raw = fsMod.readFileSync(p, 'utf8');
+    const cfg = JSON.parse(raw);
+    if (cfg && cfg.clash) return cfg.clash;
+  } catch (_) {}
+  return null;
+}
+function getClashConfig() {
+  const fileCfg = loadClashFileConfig();
+  const enabledEnv = process.env.CLASH_AUTO_SWITCH_ENABLED ?? process.env.CLASH_ENABLED;
+  let enabled;
+  if (enabledEnv !== undefined) {
+    const v = String(enabledEnv).toLowerCase();
+    enabled = v === 'true' || v === '1';
+  } else {
+    enabled = fileCfg ? !!fileCfg.enabled : false;
+  }
+  const api = process.env.CLASH_API || process.env.CLASH_VERGE_API || (fileCfg && fileCfg.api) || 'http://127.0.0.1:9097';
+  const fallbackApi = process.env.CLASH_FALLBACK_API || (fileCfg && fileCfg.fallbackApi) || 'http://127.0.0.1:9090';
+  const secret = process.env.CLASH_SECRET || process.env.CLASH_VERGE_SECRET || (fileCfg && fileCfg.secret) || '';
+  const group = process.env.CLASH_GROUP || (fileCfg && fileCfg.group) || '🚀 节点选择';
+  const excludeNodes = (process.env.CLASH_EXCLUDE_NODES ? process.env.CLASH_EXCLUDE_NODES.split(',') : (fileCfg && fileCfg.excludeNodes) || ['DIRECT','REJECT']).map(s=>String(s).trim()).filter(Boolean);
+  const dedupeMs = parseInt(String(process.env.CLASH_DEDUPE_MS || (fileCfg && fileCfg.dedupeMs) || '30000'),10);
+  return { enabled, api, fallbackApi, secret, group, excludeNodes, dedupeMs };
+}
+
+const QUOTA_PATTERNS = [
+  /FreeUsageLimitError/i,
+  /GoUsageLimitError/i,
+  /Free usage exceeded/i,
+  /insufficient[_-\\s]?quota/i,
+  /quota[_-\\s]?exceeded/i,
+  /quota/i,
+  /exhausted/i,
+  /billing/i,
+  /over_quota/i,
+  /rate limit/i,
+  /resource[_-\\s]?exhausted/i,
+  /429/,
+  /额度|配额|余额|已用完/,
+];
+
+function isQuotaExhausted(text) {
+  if (!text || typeof text !== "string") return false;
+  return QUOTA_PATTERNS.some(p => p.test(text));
+}
+
+function isQuotaStatusEvent(event) {
+  if (getEventType(event) !== "session.status") return false;
+  const props = event && typeof event.properties === "object" ? event.properties : {};
+  const status = props.status;
+  if (!status || typeof status !== "object" || status.type !== "retry") return false;
+  const action = status.action && typeof status.action === "object" ? status.action : {};
+  if (action.reason === "free_tier_limit" || action.reason === "quota_exhausted" || action.reason === "account_rate_limit") return true;
+  const msg = firstString(status.message, action.message, action.title);
+  return isQuotaExhausted(msg);
+}
+
+function shouldSkipClash(group, next, dedupeMs) {
+  const key = \`\${group}::\${next}\`;
+  const now = Date.now();
+  if (key && key === lastClashKey && now - lastClashAt < dedupeMs) return true;
+  lastClashKey = key;
+  lastClashAt = now;
+  return false;
+}
+
+let clashFailCount = 0;
+let clashCircuitOpenUntil = 0;
+const CLASH_CIRCUIT_THRESHOLD = 3;
+const CLASH_CIRCUIT_COOLDOWN_MS = 5 * 60 * 1000;
+function isClashCircuitOpen() { return Date.now() < clashCircuitOpenUntil; }
+function recordClashSuccess() { clashFailCount = 0; clashCircuitOpenUntil = 0; }
+function recordClashFail() {
+  clashFailCount++;
+  if (clashFailCount >= CLASH_CIRCUIT_THRESHOLD) clashCircuitOpenUntil = Date.now() + CLASH_CIRCUIT_COOLDOWN_MS;
+}
+async function fetchWithTimeout(url, opts={}, timeoutMs=5000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...opts, signal: controller.signal });
+    clearTimeout(id);
+    return res;
+  } catch (e) { clearTimeout(id); throw e; }
+}
+async function checkClashHealth(cfg) {
+  const { api, fallbackApi, secret } = cfg;
+  const apis = [api, fallbackApi].filter(Boolean);
+  for (const base of apis) {
+    try {
+      const baseUrl = base.replace(/\\/+$/, "");
+      const headers = secret ? { Authorization: \`Bearer \${secret}\` } : {};
+      const res = await fetchWithTimeout(\`\${baseUrl}/version\`, { headers }, 3000);
+      if (res.ok) return true;
+    } catch (_) {}
+  }
+  return false;
+}
+
+async function switchClashNext(cfg) {
+  if (isClashCircuitOpen()) throw new Error('Clash circuit open (too many fails, cooling)');
+  const { group, api, fallbackApi, secret, excludeNodes, dedupeMs } = cfg;
+  // Validate group exists quickly
+  const healthy = await checkClashHealth(cfg);
+  if (!healthy) { recordClashFail(); throw new Error('Clash API not reachable'); }
+  const apis = [api];
+  if (api.includes("9097") && !apis.includes(fallbackApi)) apis.push(fallbackApi);
+  if (api.includes("9090") && !apis.includes("http://127.0.0.1:9097")) apis.push("http://127.0.0.1:9097");
+  let lastErr = null;
+  for (const base of apis) {
+    try {
+      const baseUrl = base.replace(/\\/+$/, "");
+      const getUrl = \`\${baseUrl}/proxies/\${encodeURIComponent(group)}\`;
+      const headers = secret ? { Authorization: \`Bearer \${secret}\` } : {};
+      const res = await fetchWithTimeout(getUrl, { headers }, 5000);
+      if (!res.ok) {
+        lastErr = new Error(\`GET \${group} \${res.status}\`);
+        continue;
+      }
+      const data = await res.json();
+      const all = Array.isArray(data.all) ? data.all : [];
+      const now = firstString(data.now);
+      // 优先切叶节点（Vless等具体节点），避免切到子策略组（♻️ 自动选择等）
+      let leafCandidates = all;
+      try {
+        const allProxiesRes = await fetchWithTimeout(\`\${baseUrl}/proxies\`, { headers }, 5000);
+        if (allProxiesRes.ok) {
+          const allProxies = (await allProxiesRes.json()).proxies || {};
+          const groupTypes = ['Selector','URLTest','Fallback','LoadBalance','Relay'];
+          leafCandidates = all.filter(n => {
+            if (excludeNodes.includes(n)) return false;
+            const t = allProxies[n]?.type;
+            if (!t) return true;
+            return !groupTypes.includes(t);
+          });
+          if (leafCandidates.length === 0) leafCandidates = all.filter(n => !excludeNodes.includes(n));
+        } else {
+          leafCandidates = all.filter(n => !excludeNodes.includes(n));
+        }
+      } catch (_) {
+        leafCandidates = all.filter(n => !excludeNodes.includes(n));
+      }
+      const candidates = leafCandidates;
+      if (candidates.length === 0) throw new Error(\`no candidates in \${group}\`);
+      let idx = candidates.indexOf(now);
+      if (idx === -1) idx = all.indexOf(now);
+      // if now not in candidates (e.g. DIRECT), start from 0
+      const nextIdx = idx === -1 ? 0 : (candidates.indexOf(now) !== -1 ? (candidates.indexOf(now) + 1) % candidates.length : (all.indexOf(now) + 1) % all.length);
+      // Simpler: use candidates index
+      let next = "";
+      if (candidates.includes(now)) {
+        const cIdx = candidates.indexOf(now);
+        next = candidates[(cIdx + 1) % candidates.length];
+      } else {
+        // now not in candidates, pick first candidate
+        next = candidates[0];
+        // but if all.length > candidates.length, ensure round-robin still uses all order fallback
+        if (!next) next = all[(all.indexOf(now) + 1) % all.length];
+      }
+      if (!next || next === now) throw new Error("no next proxy");
+      if (shouldSkipClash(group, next, dedupeMs)) {
+        return { switched: false, reason: "dedupe", from: now, to: next };
+      }
+      const putUrl = \`\${baseUrl}/proxies/\${encodeURIComponent(group)}\`;
+      const putRes = await fetchWithTimeout(putUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ name: next }),
+      });
+      if (!putRes.ok && putRes.status !== 204) {
+        lastErr = new Error(\`PUT \${group}->\${next} \${putRes.status}\`);
+        continue;
+      }
+      // verify
+      await delay(500);
+      try {
+        const verifyRes = await fetchWithTimeout(getUrl, { headers }, 3000);
+        if (verifyRes.ok) {
+          const v = await verifyRes.json();
+          if (v.now !== next) {
+            // still consider success if API accepted, but log mismatch
+          }
+        }
+      } catch (_) {}
+      recordClashSuccess();
+      return { switched: true, from: now, to: next, api: base };
+    } catch (e) {
+      lastErr = e;
+      continue;
+    }
+  }
+  recordClashFail();
+  throw lastErr || new Error("clash switch failed");
+}
+
+async function handleQuotaSwitch(payload, event, client) {
+  const cfg = getClashConfig();
+  if (!cfg.enabled) return;
+  try {
+    const result = await switchClashNext(cfg);
+    if (result.switched) {
+      const msg = \`Clash 已切同组下一个: \${cfg.group} \${result.from} -> \${result.to} (429/quota)\`;
+      // log via client if available
+      try {
+        if (client && client.app && typeof client.app.log === "function") {
+          await client.app.log({ body: { service: "clash-failover", level: "warn", message: msg, extra: { sessionID: payload.session_id, group: cfg.group, from: result.from, to: result.to, api: result.api } } });
+        }
+      } catch (_) {}
+      // dispatch notification via original channel (additive)
+      const notifyPayload = {
+        ...payload,
+        task_info: msg,
+        output_content: \`\${msg}\\n原错误: \${payload.error_message || ""}\\n\${payload.assistant_message || ""}\`.trim(),
+        hook_event_name: payload.hook_event_name + "+clash-switch",
+      };
+      await dispatchPayload(notifyPayload);
+    } else if (result.reason === "dedupe") {
+      // skip notify on dedupe
+    }
+  } catch (e) {
+    const errMsg = e && e.message ? e.message : String(e);
+    try {
+      if (client && client.app && typeof client.app.log === "function") {
+        await client.app.log({ body: { service: "clash-failover", level: "error", message: \`Clash 切换失败: \${errMsg}\`, extra: { sessionID: payload.session_id, group: cfg.group } } });
+      }
+    } catch (_) {}
+    // still notify failure via original channel
+    const failPayload = {
+      ...payload,
+      task_info: \`Clash 切换失败: \${cfg.group} \${errMsg}\`,
+      output_content: \`Clash 切换失败: \${errMsg}\\n原错误: \${payload.error_message || ""}\`.trim(),
+      hook_event_name: payload.hook_event_name + "+clash-fail",
+    };
+    await dispatchPayload(failPayload);
+  }
+}
 
 function firstString(...values) {
   for (const value of values) {
@@ -546,11 +804,64 @@ async function dispatchPayload(payload) {
 export const AiCliCompleteNotifyPlugin = async ({ client, project, directory, worktree }) => {
   return {
     event: async ({ event }) => {
-      if (!isCompletionEvent(event)) return;
+      const isQuotaStatus = isQuotaStatusEvent(event);
+      const isCompletion = isCompletionEvent(event);
+      if (!isQuotaStatus && !isCompletion) return;
 
-      const payload = await buildPayload(event, { project, directory, worktree }, client);
-      if (shouldSkip(payload)) return;
-      await dispatchPayload(payload);
+      // --- original notification path (preserved) ---
+      if (isCompletion) {
+        const payload = await buildPayload(event, { project, directory, worktree }, client);
+        if (!shouldSkip(payload)) {
+          await dispatchPayload(payload);
+        }
+        // quota check also on completion events (session.error with 429 text)
+        const quotaTextForCompletion = [payload.error_message, payload.assistant_message, getErrorMessage(event)].join("\\n");
+        // For session.error, assistant_message is empty (original buildPayload), try fetch extra for quota detection
+        let extraQuotaText = "";
+        if (payload.session_id && !payload.assistant_message) {
+          try {
+            extraQuotaText = await fetchLatestAssistantText(client, payload.session_id);
+          } catch (_) {}
+        }
+        const fullQuotaText = quotaTextForCompletion + "\\n" + extraQuotaText;
+        if (isQuotaExhausted(fullQuotaText)) {
+          // need payload with assistant for switch notification; enrich
+          if (extraQuotaText) {
+            payload.assistant_message = payload.assistant_message ? payload.assistant_message + "\\n" + extraQuotaText : extraQuotaText;
+            payload.output_content = payload.error_message ? payload.error_message + "\\n" + extraQuotaText : extraQuotaText;
+          }
+          await handleQuotaSwitch(payload, event, client);
+        } else if (isQuotaStatus) {
+          // status retry but not matched via text, still switch (already filtered by reason)
+          await handleQuotaSwitch(payload, event, client);
+        }
+        return;
+      }
+
+      // --- quota-only path (session.status retry) ---
+      if (isQuotaStatus) {
+        // Build a payload for notification/switch (no original isCompletion, so create one)
+        const sessionId = getSessionId(event);
+        let assistantText = "";
+        try {
+          assistantText = await fetchLatestAssistantText(client, sessionId);
+        } catch (_) {}
+        const status = event.properties && event.properties.status ? event.properties.status : {};
+        const action = status.action || {};
+        const errMsg = firstString(status.message, action.message, action.title, getErrorMessage(event)) || "FreeUsageLimitError";
+        const payload = {
+          hook_source: 'opencode-plugin',
+          hook_event_name: getEventType(event),
+          cwd: firstString(event.cwd, event.directory, worktree, directory),
+          task_info: \`OpenCode 429/额度: \${errMsg}\`.slice(0, 120),
+          session_id: sessionId,
+          error_message: errMsg,
+          project_name: firstString(project && project.name),
+          assistant_message: assistantText,
+          output_content: assistantText || errMsg,
+        };
+        await handleQuotaSwitch(payload, event, client);
+      }
     },
   };
 };

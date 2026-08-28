@@ -87,6 +87,19 @@ export interface AppConfig {
       };
     };
   };
+  clash: {
+    enabled: boolean;
+    api: string;
+    fallbackApi: string;
+    secret: string;
+    group: string;
+    excludeNodes: string[];
+    dedupeMs: number;
+    apiEnv: string;
+    secretEnv: string;
+    groupEnv: string;
+    sources: Record<SourceKey, boolean>;
+  };
   sources: Record<
     string,
     {

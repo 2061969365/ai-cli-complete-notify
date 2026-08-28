@@ -98,6 +98,24 @@ const DEFAULT_CONFIG = {
       }
     }
   },
+  clash: {
+    enabled: false,
+    api: 'http://127.0.0.1:9097',
+    fallbackApi: 'http://127.0.0.1:9090',
+    secret: 'set-your-secret',
+    group: '🚀 节点选择',
+    excludeNodes: ['DIRECT', 'REJECT'],
+    dedupeMs: 30000,
+    apiEnv: 'CLASH_API',
+    secretEnv: 'CLASH_SECRET',
+    groupEnv: 'CLASH_GROUP',
+    sources: {
+      claude: false,
+      codex: false,
+      gemini: false,
+      opencode: true
+    }
+  },
   sources: {
     claude: {
       enabled: true,
