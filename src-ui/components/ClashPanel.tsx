@@ -48,7 +48,7 @@ export default function ClashPanel({ config, onUpdate }: Props) {
             <div className="font-serif text-[18px]">{t('clash.enable')}</div>
             <div className="mt-1 text-xs text-muted">{t('clash.enable.desc')}</div>
           </div>
-          <Switch checked={clash.enabled} onChange={(v) => updateClash({ enabled: v })} />
+          <Switch checked={clash.enabled} onChange={() => updateClash({ enabled: !clash.enabled })} />
         </div>
 
         <div className={`space-y-4 ${!clash.enabled ? 'opacity-45 pointer-events-none' : ''}`}>
@@ -132,7 +132,7 @@ export default function ClashPanel({ config, onUpdate }: Props) {
                   <span className="text-sm capitalize">{k}</span>
                   <Switch
                     checked={!!clash.sources?.[k]}
-                    onChange={(v) => updateClash({ sources: { ...clash.sources, [k]: v } })}
+                    onChange={() => updateClash({ sources: { ...clash.sources, [k]: !clash.sources?.[k] } })}
                   />
                 </label>
               ))}
